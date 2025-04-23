@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:mail_merge/add_email_accounts.dart';
 import 'package:mail_merge/home.dart';
 import 'package:mail_merge/sign_upp.dart';
 
@@ -105,7 +106,8 @@ class _LoginPageState extends State<LoginPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const Home(),
+                              builder:
+                                  (context) => const AddEmailAccountsPage(),
                             ),
                           );
                         },
