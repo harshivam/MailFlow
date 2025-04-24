@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/firstScreen.dart';
-import 'package:mail_merge/home.dart';
-import 'package:mail_merge/sign_upp.dart';
 
 void main() {
   runApp(const MyApp());
