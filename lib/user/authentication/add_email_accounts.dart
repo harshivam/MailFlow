@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/home.dart';
+import 'package:mail_merge/user/authentication/google_sign_in.dart';
 
 class AddEmailAccountsPage extends StatelessWidget {
   const AddEmailAccountsPage({super.key});
@@ -50,6 +51,9 @@ class AddEmailAccountsPage extends StatelessWidget {
               icon: Icons.email,
               color: Colors.red,
               label: "Gmail",
+              onTap: () {
+                signInWithGoogle(context);
+              },
             ),
             const Divider(),
             _buildEmailOption(
@@ -83,6 +87,7 @@ class AddEmailAccountsPage extends StatelessWidget {
     required IconData icon,
     required Color color,
     required String label,
+    VoidCallback? onTap,
   }) {
     return ListTile(
       leading: Icon(icon, color: color),
@@ -90,15 +95,17 @@ class AddEmailAccountsPage extends StatelessWidget {
         label,
         style: const TextStyle(fontSize: 16, color: Colors.black),
       ),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const Home()),
-        );
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("$label selected")));
-      },
+      onTap:
+          onTap ??
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const Home()),
+            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text("$label selected")));
+          },
     );
   }
 }
