@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "180540721054",
+    "project_id": "mailflow-457112",
+    "storage_bucket": "mailflow-457112.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:180540721054:android:5607803a05cd1af968788f",
+        "android_client_info": {
+          "package_name": "com.example.mail_merge"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVbxLrhpCcQuyehU6WQgFggwmw_JgeAMM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
