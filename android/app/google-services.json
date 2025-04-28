@@ -14,11 +14,18 @@
       },
       "oauth_client": [
         {
+          "client_id": "180540721054-7qgd3hoqfol8fh8e3puatunldq8aht1n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mail_merge",
+            "certificate_hash": "554f1e2c784e5fd10b2f78d7d34422e0b2fc02fb"
+          }
+        },
+        {
           "client_id": "180540721054-dn4f972muatqde0vin0ss35m6ff66ufp.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
-
       "api_key": [
         {
           "current_key": "AIzaSyCVbxLrhpCcQuyehU6WQgFggwmw_JgeAMM"
