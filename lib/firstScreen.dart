@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
-import 'package:mail_merge/login_page.dart';
-import 'package:mail_merge/sign_upp.dart';
+import 'package:mail_merge/login/login_page.dart';
+import 'package:mail_merge/login/sign_up.dart';
 
 class Firstscreen extends StatefulWidget {
   const Firstscreen({super.key});

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
-import 'package:mail_merge/sign_upp.dart';
+import 'package:mail_merge/login/sign_up.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

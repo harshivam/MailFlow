@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mail_merge/login_page.dart';
+import 'package:mail_merge/login/login_page.dart';
 import 'package:lottie/lottie.dart';
 
 class SignUp extends StatefulWidget {
