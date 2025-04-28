@@ -74,12 +74,7 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Unsubscribe", style: TextStyle(color: Colors.black)),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
+      
       body: Column(
         children: [
           // 📌 Select All Checkbox

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:mail_merge/AttachmentsScreen.dart';
-import 'package:mail_merge/VipScreen.dart';
-import 'package:mail_merge/unsubscribe.dart';
+import 'package:mail_merge/attachments_hub/AttachmentsScreen.dart';
+import 'package:mail_merge/vip_inox/VipScreen.dart';
+import 'package:mail_merge/unsubscribe_manager/unsubscribe.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -11,19 +11,52 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
+  int _selectedIndex = 0;
+
+  final List<Widget> _screens = [
+    const ChatList(), // Home Screen
+    const VipScreen(), // VIP Screen
+    const Attachmentsscreen(), // Attachments Screen
+    const UnsubscribeScreen(), // Unsubscribe Screen
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const CustomAppBar(),
-      body: const ChatList(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Handle FAB action
-        },
-        backgroundColor: Colors.blue,
-        child: const Icon(Icons.add, color: Colors.white),
+      body: IndexedStack(index: _selectedIndex, children: _screens),
+      bottomNavigationBar: BottomNavigationBar(
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+
+        selectedFontSize: 10,
+        unselectedFontSize: 10,
+
+        showUnselectedLabels: false,
+        showSelectedLabels: false,
+
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _selectedIndex,
+        items: [
+          const BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          const BottomNavigationBarItem(icon: Icon(Icons.star), label: "VIP"),
+          BottomNavigationBarItem(
+            icon: Transform.scale(
+              scale: 0.8, // Scale down the Attachments icon
+              child: Icon(Icons.attach_file),
+            ),
+            label: "Attachments",
+          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.unsubscribe), label: "Unsubscribe"),
+        ],
+        onTap: _onItemTapped,
       ),
-      bottomNavigationBar: CustomBottomNavBar(),
     );
   }
 }
@@ -77,13 +110,13 @@ class _ChatListState extends State<ChatList> {
           "name": "Peter",
           "message": "Thanks",
           "time": "11:01 AM",
-          "avatar": "assets/peter.png",
+          "avatar": "assets/images/profile_photo.png",
         },
         {
           "name": "John Smith",
           "message": "Yay, I did it, thanks.",
           "time": "10:20 AM",
-          "avatar": "assets/john.png",
+          "avatar": "assets/images/profile_photo.png",
         },
       ];
     });
@@ -133,76 +166,6 @@ class ChatItem extends StatelessWidget {
       ),
       onTap: () {
         // Handle tap event
-      },
-    );
-  }
-}
-
-// 📌 Custom Bottom Navigation Bar (Stateful for dynamic navigation)
-class CustomBottomNavBar extends StatefulWidget {
-  const CustomBottomNavBar({super.key});
-
-  @override
-  State<CustomBottomNavBar> createState() => _CustomBottomNavBarState();
-}
-
-class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
-  int _selectedIndex = 0;
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      selectedItemColor: Colors.blue,
-      unselectedItemColor: Colors.grey,
-      showUnselectedLabels: true,
-      type: BottomNavigationBarType.shifting, // Ensures equal spacing
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-        BottomNavigationBarItem(icon: Icon(Icons.star), label: "VIP"),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.attach_file),
-          label: "Attachments",
-        ),
-        BottomNavigationBarItem(icon: Icon(Icons.block), label: "Unsubscribe"),
-      ],
-      onTap: (index) {
-        switch (index) {
-          case 0:
-            Home;
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const Home()),
-            );
-            break;
-          case 1: // VIP
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const VipScreen()),
-            );
-            break;
-          case 2: // Attachments
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const Attachmentsscreen(),
-              ),
-            );
-            break;
-          case 3: // Unsubscribe
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const UnsubscribeScreen(),
-              ),
-            );
-            break;
-        }
       },
     );
   }
