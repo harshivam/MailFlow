@@ -8,6 +8,7 @@ import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'dart:math'; // For the min function
 import 'package:mail_merge/settings/settings_screen.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
+import 'package:shimmer/shimmer.dart'; // Import shimmer package
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -144,204 +145,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
 
-class ChatList extends StatefulWidget {
-  final String accessToken;
-
-  const ChatList({super.key, required this.accessToken});
-
-  @override
-  State<ChatList> createState() => _ChatListState();
-}
-
-class _ChatListState extends State<ChatList> {
-  List<Map<String, dynamic>> chatData = [];
-  bool _isLoading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.accessToken.isNotEmpty) {
-      fetchEmails();
-    }
-  }
-
-  @override
-  void didUpdateWidget(ChatList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // If access token has changed and is not empty, fetch emails
-    if (widget.accessToken != oldWidget.accessToken &&
-        widget.accessToken.isNotEmpty) {
-      fetchEmails();
-    }
-  }
-
-  Future<void> fetchEmails() async {
-    if (widget.accessToken.isEmpty) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final response = await http.get(
-        Uri.parse(
-          'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
-        ),
-        headers: {
-          'Authorization': 'Bearer ${widget.accessToken}',
-          'Accept': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        var data = json.decode(response.body);
-        var messages = data['messages'];
-
-        if (messages == null) {
-          setState(() {
-            _isLoading = false;
-          });
-          return;
-        }
-
-        List<Map<String, dynamic>> tempChatData = [];
-
-        // Loop through messages and get their details
-        for (var message in messages) {
-          String messageId = message['id'];
-
-          final detailResponse = await http.get(
-            Uri.parse(
-              'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId',
-            ),
-            headers: {
-              'Authorization': 'Bearer ${widget.accessToken}',
-              'Accept': 'application/json',
-            },
-          );
-
-          if (detailResponse.statusCode == 200) {
-            var emailData = json.decode(detailResponse.body);
-
-            String snippet = emailData['snippet'] ?? '';
-            List headers = emailData['payload']['headers'];
-
-            String subject = 'No Subject';
-            String sender = 'Unknown';
-            String time = '';
-
-            for (var header in headers) {
-              if (header['name'] == 'Subject') {
-                subject = header['value'];
-              } else if (header['name'] == 'From') {
-                sender = header['value'];
-                if (sender.contains('<')) {
-                  sender = sender.split('<')[0].trim();
-                  // Remove quotes if present
-                  if (sender.startsWith('"') && sender.endsWith('"')) {
-                    sender = sender.substring(1, sender.length - 1);
-                  }
-                }
-              } else if (header['name'] == 'Date') {
-                time = header['value'];
-              }
-            }
-
-            tempChatData.add({
-              "name": sender,
-              "message": subject,
-              "snippet": snippet,
-              "time": time,
-              "avatar": "assets/images/profile_photo.png",
-            });
-          }
-        }
-
-        // Update UI
-        setState(() {
-          chatData = tempChatData;
-          _isLoading = false;
-        });
-      } else {
-        print('Failed to fetch emails: ${response.body}');
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (error) {
-      print('Error fetching emails: $error');
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Update the "Sign in to view your emails" section
-
-    if (widget.accessToken.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("Sign in to view your emails"),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                // Navigate to Add Email Accounts screen instead of direct sign-in
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddEmailAccountsPage(),
-                  ),
-                );
-              },
-              child: const Text("Add Email Account"),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (chatData.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("No emails found"),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: fetchEmails,
-              child: const Text("Refresh"),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Now we're actually returning the ListView instead of stopping at the placeholder
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: chatData.length,
-      itemBuilder: (context, index) {
-        return ChatItem(
-          name: chatData[index]["name"] ?? "Unknown",
-          message: chatData[index]["message"] ?? "",
-          time: chatData[index]["time"] ?? "",
-          snippet: chatData[index]["snippet"] ?? "",
-          avatar:
-              chatData[index]["avatar"] ?? "assets/images/profile_photo.png",
-        );
-      },
-    );
-  }
-}
-
 class ChatItem extends StatelessWidget {
   final String name;
   final String message;
@@ -372,16 +175,15 @@ class ChatItem extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar
-                CircleAvatar(radius: 20, backgroundImage: AssetImage(avatar)),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundImage: NetworkImage(avatar),
+                ), // Avatar from network
                 const SizedBox(width: 12),
-
-                // Email content
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Sender name with timestamp moved here
                       Row(
                         children: [
                           Expanded(
@@ -405,10 +207,7 @@ class ChatItem extends StatelessWidget {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 4),
-
-                      // Subject only (time removed from here)
                       Text(
                         message,
                         style: const TextStyle(
@@ -423,8 +222,6 @@ class ChatItem extends StatelessWidget {
                 ),
               ],
             ),
-
-            // Message preview
             Padding(
               padding: const EdgeInsets.only(left: 52.0, top: 4.0),
               child: Text(
@@ -440,15 +237,11 @@ class ChatItem extends StatelessWidget {
     );
   }
 
-  // Helper method to format the time
   String _formatTime(String timeString) {
     if (timeString.isEmpty) return '';
 
     try {
-      // Try to parse the RFC 2822 or similar format (standard email date format)
       DateTime? date;
-
-      // List of month abbreviations
       const List<String> months = [
         'Jan',
         'Feb',
@@ -465,43 +258,309 @@ class ChatItem extends StatelessWidget {
       ];
 
       try {
-        // Try standard format first
         date = DateTime.parse(timeString);
       } catch (_) {
-        // If direct parsing fails, try to extract from email date format
         final RegExp dateRegex = RegExp(
           r'(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)',
           caseSensitive: false,
         );
-
         final match = dateRegex.firstMatch(timeString);
         if (match != null) {
-          final day = match.group(1);
-          final month = match.group(2);
-          if (day != null && month != null) {
-            return '$day $month'; // Return in "28 Apr" format
-          }
+          return '${match.group(1)} ${match.group(2)}';
         }
-
-        // Fallback to just using the date portion if available
         if (timeString.contains(',')) {
           final parts = timeString.split(',');
-          if (parts.length > 1) {
-            return parts[0]; // Often this is day and month
+          if (parts.length > 1) return parts[0];
+        }
+        return timeString.substring(0, timeString.length.clamp(0, 10));
+      }
+
+      final day = date!.day;
+      final month = months[date.month - 1];
+      return '$day $month';
+    } catch (_) {
+      return timeString.length > 10 ? timeString.substring(0, 10) : timeString;
+    }
+  }
+}
+
+class ChatList extends StatefulWidget {
+  final String accessToken;
+
+  const ChatList({super.key, required this.accessToken});
+
+  @override
+  State<ChatList> createState() => _ChatListState();
+}
+
+class _ChatListState extends State<ChatList> {
+  List<Map<String, dynamic>> chatData = [];
+  bool _isLoading = false;
+  bool _hasMore = true;
+  String? _nextPageToken;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.accessToken.isNotEmpty) {
+      fetchEmails();
+    }
+
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+              _scrollController.position.maxScrollExtent - 200 &&
+          !_isLoading &&
+          _hasMore) {
+        fetchEmails();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(ChatList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.accessToken != oldWidget.accessToken &&
+        widget.accessToken.isNotEmpty) {
+      chatData.clear();
+      _nextPageToken = null;
+      _hasMore = true;
+      fetchEmails();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> fetchEmails() async {
+    if (widget.accessToken.isEmpty || !_hasMore) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final uri = Uri.parse(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=25${_nextPageToken != null ? '&pageToken=$_nextPageToken' : ''}',
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer ${widget.accessToken}',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final messages = data['messages'] as List?;
+        _nextPageToken = data['nextPageToken'];
+        _hasMore = _nextPageToken != null;
+
+        if (messages == null || messages.isEmpty) {
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        for (var message in messages) {
+          final messageId = message['id'];
+
+          final detailResponse = await http.get(
+            Uri.parse(
+              'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId',
+            ),
+            headers: {
+              'Authorization': 'Bearer ${widget.accessToken}',
+              'Accept': 'application/json',
+            },
+          );
+
+          if (detailResponse.statusCode == 200) {
+            final emailData = json.decode(detailResponse.body);
+            final snippet = emailData['snippet'] ?? '';
+            final headers = emailData['payload']['headers'] as List;
+
+            String subject = 'No Subject';
+            String sender = 'Unknown';
+            String time = '';
+            String avatar =
+                'https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png'; // Default avatar
+
+            for (var header in headers) {
+              if (header['name'] == 'Subject') {
+                subject = header['value'];
+              } else if (header['name'] == 'From') {
+                sender = header['value'];
+                if (sender.contains('<')) {
+                  sender = sender.split('<')[0].trim();
+                  if (sender.startsWith('"') && sender.endsWith('"')) {
+                    sender = sender.substring(1, sender.length - 1);
+                  }
+                }
+              } else if (header['name'] == 'Date') {
+                time = header['value'];
+              }
+            }
+
+            // Fetch the sender's avatar (profile image URL)
+            final profileResponse = await http.get(
+              Uri.parse(
+                'https://people.googleapis.com/v1/people/me?personFields=photos',
+              ),
+              headers: {'Authorization': 'Bearer ${widget.accessToken}'},
+            );
+            if (profileResponse.statusCode == 200) {
+              final profileData = json.decode(profileResponse.body);
+              final photos = profileData['photos'] as List?;
+              if (photos != null && photos.isNotEmpty) {
+                avatar = photos.first['url']; // Get the profile photo URL
+              }
+            }
+
+            chatData.add({
+              "name": sender,
+              "message": subject,
+              "snippet": snippet,
+              "time": time,
+              "avatar": avatar,
+            });
           }
         }
 
-        return timeString.substring(0, min(10, timeString.length));
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        print('Failed to fetch emails: ${response.body}');
+        setState(() => _isLoading = false);
       }
-
-      // If we successfully parsed the date, format it nicely
-      final day = date!.day;
-      final month = months[date.month - 1]; // Get month abbreviation
-
-      return '$day $month'; // Format as "28 Apr"
     } catch (e) {
-      // If all else fails, just return a subset of the string
-      return timeString.length > 10 ? timeString.substring(0, 10) : timeString;
+      print('Error fetching emails: $e');
+      setState(() => _isLoading = false);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.accessToken.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text("Sign in to view your emails"),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddEmailAccountsPage(),
+                  ),
+                );
+              },
+              child: const Text("Add Email Account"),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_isLoading && chatData.isEmpty) {
+      return _buildShimmerEffect(); // Shimmer effect during loading
+    }
+
+    if (chatData.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text("No emails found"),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: fetchEmails,
+              child: const Text("Refresh"),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: chatData.length + (_hasMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == chatData.length) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final email = chatData[index];
+        return ChatItem(
+          name: email["name"] ?? "Unknown",
+          message: email["message"] ?? "",
+          time: email["time"] ?? "",
+          snippet: email["snippet"] ?? "",
+          avatar:
+              email["avatar"] ??
+              "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png", // Default avatar
+        );
+      },
+    );
+  }
+
+  // Shimmer effect while loading
+  Widget _buildShimmerEffect() {
+    return ListView.builder(
+      itemCount: 10,
+      itemBuilder: (context, index) {
+        return Shimmer.fromColors(
+          baseColor: Colors.grey[300]!,
+          highlightColor: Colors.grey[100]!,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6.0),
+            child: Card(
+              elevation: 0.5,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    CircleAvatar(radius: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 120,
+                            height: 10,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            width: 150,
+                            height: 10,
+                            color: Colors.white,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
