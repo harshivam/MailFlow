@@ -3,6 +3,7 @@ import 'package:mail_merge/features/email/widgets/email_item.dart';
 import 'package:mail_merge/features/email/widgets/email_shimmer.dart';
 import 'package:mail_merge/features/email/services/email_service.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
+import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
@@ -30,10 +31,29 @@ class EmailListScreenState extends State<EmailListScreen>
   @override
   bool get wantKeepAlive => true; // Keep state when switching tabs
 
+  void checkAuthAndClearIfNeeded() async {
+    final user = await getCurrentUser();
+
+    if (user == null && mounted) {
+      // User is not logged in, clear everything
+      setState(() {
+        emailData.clear();
+        _nextPageToken = null;
+        _hasMore = true;
+        _isLoading = false;
+      });
+
+      // Also clear the cache
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('cached_emails');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _emailService = EmailService(widget.accessToken);
+    checkAuthAndClearIfNeeded(); // Add this line
 
     if (widget.accessToken.isNotEmpty) {
       _loadCachedEmails(); // Load from cache first

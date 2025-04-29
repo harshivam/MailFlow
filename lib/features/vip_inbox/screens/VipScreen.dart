@@ -11,6 +11,8 @@ import 'package:mail_merge/features/vip_inbox/widgets/contact_email_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
+/// A screen that displays emails from VIP contacts organized into folders
+/// Each folder represents a VIP contact and contains all emails from that contact
 class VipScreen extends StatefulWidget {
   const VipScreen({super.key});
 
@@ -21,29 +23,37 @@ class VipScreen extends StatefulWidget {
 class _VipScreenState extends State<VipScreen>
     with AutomaticKeepAliveClientMixin {
   // Map to store emails grouped by contact
+  // Key: contact email, Value: list of emails from that contact
   Map<String, List<Map<String, dynamic>>> _vipEmailsByContact = {};
+  
+  // List of all VIP contacts
   List<Contact> _vipContacts = [];
-  bool _isLoading = true;
-  bool _isRefreshing = false;
-  String? _accessToken;
-  bool _loadingFromCache = false;
+  
+  // Loading and state flags
+  bool _isLoading = true; // Used for initial loading
+  bool _isRefreshing = false; // Used for pull-to-refresh
+  String? _accessToken; // Google API access token
+  bool _loadingFromCache = false; // Indicates we're loading data from cache
 
   // Currently selected contact (for showing their emails)
+  // When null, we show the folders view instead of emails
   String? _selectedContactEmail;
 
+  /// Keeps the state alive when switching between tabs
+  /// This prevents losing data and reloading when switching tabs
   @override
   bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    _loadCachedVipEmails();
-    _loadVipEmails();
-    _checkAuthAndClearDataIfNeeded(); // Add this line
+    _loadCachedVipEmails(); // First load from cache for instant display
+    _loadVipEmails(); // Then fetch fresh data from the server
+    _checkAuthAndClearDataIfNeeded(); // Verify authentication status
   }
 
-  // Add this method to check authentication before building UI
-
+  /// Checks if user is authenticated and clears data if not
+  /// This prevents showing emails after logging out
   void _checkAuthAndClearDataIfNeeded() async {
     final user = await getCurrentUser();
     if (user == null && mounted) {
@@ -55,7 +65,8 @@ class _VipScreenState extends State<VipScreen>
     }
   }
 
-  // Load emails from cache
+  /// Loads cached VIP emails from SharedPreferences for faster startup
+  /// This provides immediate content while fresh data is being fetched
   Future<void> _loadCachedVipEmails() async {
     try {
       _loadingFromCache = true;
@@ -96,7 +107,8 @@ class _VipScreenState extends State<VipScreen>
     }
   }
 
-  // Cache emails for faster loading next time
+  /// Saves emails and contacts to cache for faster loading next time
+  /// This ensures data is immediately available on app restart
   Future<void> _cacheVipEmails() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -122,18 +134,25 @@ class _VipScreenState extends State<VipScreen>
     }
   }
 
+  /// Loads VIP emails from the server
+  /// This is the main data fetching method that retrieves emails for all VIP contacts
   Future<void> _loadVipEmails({bool refresh = false}) async {
+    // Store the current selected contact before refreshing
+    final currentSelectedContact = _selectedContactEmail;
+    
+    // Handle loading state based on whether this is a refresh or initial load
     if (refresh) {
       setState(() {
         _isRefreshing = true;
-        _selectedContactEmail = null; // Clear selection on refresh
+        // Don't reset selectedContactEmail when refreshing
+        // _selectedContactEmail = null; <- Remove this line
       });
     } else if (!_isLoading) {
       setState(() => _isLoading = true);
     }
 
     try {
-      // Get access token
+      // Get access token for API calls
       _accessToken = await getGoogleAccessToken();
       if (_accessToken == null) {
         setState(() {
@@ -147,11 +166,17 @@ class _VipScreenState extends State<VipScreen>
       final vipContacts = await ContactService.getVipContacts();
       _vipContacts = vipContacts;
 
+      // If no VIP contacts, clear emails and update state
       if (vipContacts.isEmpty) {
         setState(() {
           _vipEmailsByContact = {};
           _isLoading = false;
           _isRefreshing = false;
+          // Reset selected contact only if its contact no longer exists
+          if (_selectedContactEmail != null && 
+              !vipContacts.any((c) => c.email.toLowerCase() == _selectedContactEmail!.toLowerCase())) {
+            _selectedContactEmail = null;
+          }
         });
         _cacheVipEmails(); // Cache empty results
         return;
@@ -164,6 +189,7 @@ class _VipScreenState extends State<VipScreen>
       Map<String, List<Map<String, dynamic>>> emailsByContact = {};
 
       // Fetch emails for each VIP contact in parallel
+      // This improves performance by not waiting for each contact sequentially
       final emailFutures = vipContacts.map((contact) async {
         final query = 'from:${contact.email.toLowerCase()}';
         final emails = await emailService.fetchEmailsWithQuery(
@@ -186,6 +212,13 @@ class _VipScreenState extends State<VipScreen>
           _vipEmailsByContact = emailsByContact;
           _isLoading = false;
           _isRefreshing = false;
+          
+          // If the contact we were viewing no longer exists in the results,
+          // then reset the selected contact
+          if (_selectedContactEmail != null && 
+              !emailsByContact.containsKey(_selectedContactEmail!.toLowerCase())) {
+            _selectedContactEmail = null;
+          }
         });
         _cacheVipEmails(); // Cache results
       }
@@ -200,7 +233,8 @@ class _VipScreenState extends State<VipScreen>
     }
   }
 
-  // Helper method to get contact name from email
+  /// Gets a contact's name from their email address
+  /// Used to display proper names in the UI instead of just email addresses
   String? _getContactName(String email) {
     final contact = _vipContacts.firstWhere(
       (c) => c.email.toLowerCase() == email.toLowerCase(),
@@ -211,50 +245,55 @@ class _VipScreenState extends State<VipScreen>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
 
-    // Only show shimmer for initial loading when there's no data
+    // Show shimmer loading effect when loading initially (no cached data)
     if (_isLoading && _vipEmailsByContact.isEmpty && !_loadingFromCache) {
       return const EmailShimmerList(itemCount: 5);
     }
 
-    // Empty state with "Add VIP Contact" button
+    // Show empty state when there are no VIP emails
     if (_vipEmailsByContact.isEmpty) {
       return _buildEmptyState();
     }
 
-    // If no contact is selected, show the folders view
+    // Navigation logic: show folders or emails based on selection
     if (_selectedContactEmail == null) {
-      return _buildFoldersView();
+      return _buildFoldersView(); // Show contact folders
     } else {
-      // Show emails from the selected contact
-      return _buildEmailsView();
+      return _buildEmailsView(); // Show emails from selected contact
     }
   }
 
+  /// Builds the empty state UI when there are no VIP contacts
+  /// Displays helpful instructions and buttons to add VIP contacts
   Widget _buildEmptyState() {
     return Stack(
       children: [
         RefreshIndicator(
           onRefresh: () => _loadVipEmails(refresh: true),
           child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
+            physics: const AlwaysScrollableScrollPhysics(), // Enable scrolling on empty list
             children: [
               SizedBox(height: MediaQuery.of(context).size.height / 4),
+              // Star icon
               const Icon(Icons.star, size: 80, color: Colors.amber),
               const SizedBox(height: 16),
+              // Title
               const Text(
                 'No VIP emails',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
+              // Explanation
               const Text(
                 'Add contacts to your VIP list to see their emails here',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 24),
+              // Button to manage contacts
               Center(
                 child: ElevatedButton.icon(
                   onPressed: () {
@@ -270,6 +309,7 @@ class _VipScreenState extends State<VipScreen>
                 ),
               ),
               const SizedBox(height: 8),
+              // Pull to refresh instruction
               const Center(
                 child: Text(
                   'Pull down to refresh',
@@ -279,11 +319,14 @@ class _VipScreenState extends State<VipScreen>
             ],
           ),
         ),
+        // Floating action button to add contact
         _buildAddContactFAB(),
       ],
     );
   }
 
+  /// Builds the folders view UI that shows all VIP contacts as folders
+  /// Each folder displays the contact's info and email count
   Widget _buildFoldersView() {
     return Stack(
       children: [
@@ -297,6 +340,7 @@ class _VipScreenState extends State<VipScreen>
               final contactEmails =
                   _vipEmailsByContact[contact.email.toLowerCase()] ?? [];
 
+              // Use the modular ContactFolderItem widget for each folder
               return ContactFolderItem(
                 contact: contact,
                 emailCount: contactEmails.length,
@@ -309,29 +353,35 @@ class _VipScreenState extends State<VipScreen>
             },
           ),
         ),
+        // Floating action button to add contact
         _buildAddContactFAB(),
       ],
     );
   }
 
+  /// Builds the emails view UI that shows emails from a selected contact
+  /// Displays a back button to return to the folders view
   Widget _buildEmailsView() {
     final emails =
         _vipEmailsByContact[_selectedContactEmail!.toLowerCase()] ?? [];
     final contactName = _getContactName(_selectedContactEmail!);
 
+    // Use the modular ContactEmailList widget to display emails
     return ContactEmailList(
       emails: emails,
       contactEmail: _selectedContactEmail!,
       contactName: contactName,
       onBackPressed: () {
         setState(() {
-          _selectedContactEmail = null;
+          _selectedContactEmail = null; // Return to folders view
         });
       },
       onRefresh: () => _loadVipEmails(refresh: true),
     );
   }
 
+  /// Builds the floating action button for adding VIP contacts
+  /// Used across multiple views for consistency
   Widget _buildAddContactFAB() {
     return Positioned(
       bottom: 16,
@@ -344,7 +394,7 @@ class _VipScreenState extends State<VipScreen>
           );
 
           if (result == true) {
-            _loadVipEmails();
+            _loadVipEmails(); // Reload data if a contact was added
           }
         },
         tooltip: 'Add VIP Contact',

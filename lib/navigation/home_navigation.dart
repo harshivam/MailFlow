@@ -3,6 +3,7 @@ import 'package:mail_merge/features/email/screens/email_list_screen.dart';
 import 'package:mail_merge/features/vip_inbox/screens/VipScreen.dart';
 import 'package:mail_merge/features/attachments_hub/screens/AttachmentsScreen.dart';
 import 'package:mail_merge/features/unsubscribe_manager/screens/unsubscribe.dart';
+import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/features/email/screens/compose_email_screen.dart';
 import 'package:mail_merge/navigation/app_sidebar.dart'; // Import the sidebar
@@ -23,6 +24,7 @@ class _HomeNavigationState extends State<HomeNavigation> {
   void initState() {
     super.initState();
     _getAccessToken(); // Get token when app starts
+    _listenForAuthChanges(); // Add this
   }
 
   // Update the _getAccessToken method to trigger fetchEmails via setState
@@ -33,6 +35,31 @@ class _HomeNavigationState extends State<HomeNavigation> {
         _accessToken = token;
       });
     }
+  }
+
+  // Add a logout detection method:
+
+  void _listenForAuthChanges() {
+    Future.delayed(const Duration(seconds: 1), () async {
+      final token = await getGoogleAccessToken();
+      if (token == null && _accessToken.isNotEmpty && mounted) {
+        // We had a token before but now it's gone - user logged out
+        setState(() {
+          _accessToken = "";
+        });
+
+        // Redirect to login
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AddEmailAccountsPage()),
+          (route) => false,
+        );
+      }
+
+      // Keep checking periodically
+      if (mounted) {
+        _listenForAuthChanges();
+      }
+    });
   }
 
   @override

@@ -79,7 +79,9 @@ class ContactEmailList extends StatelessWidget {
       );
     }
 
+    // Use a key based on contact email to preserve scroll position
     return ListView.builder(
+      key: PageStorageKey<String>(contactEmail),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: emails.length,
       itemBuilder: (context, index) {
@@ -89,8 +91,7 @@ class ContactEmailList extends StatelessWidget {
           subject: email["message"] ?? "",
           time: email["time"] ?? "",
           snippet: email["snippet"] ?? "",
-          avatar:
-              email["avatar"] ??
+          avatar: email["avatar"] ??
               "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
           emailData: email,
         );

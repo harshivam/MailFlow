@@ -152,17 +152,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
 
               if (shouldLogout == true) {
-                await signOut(); // Call sign out function
+                await signOut(context); // Pass context to handle navigation
 
-                // Show confirmation and return to home
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Logged out successfully")),
-                  );
-
-                  // Reload accounts after logout
-                  _loadAccounts();
-                }
+                // No need for manual navigation since signOut handles it
+                // Just reload accounts if somehow we're still on this screen
+                _loadAccounts();
               }
             },
           ),

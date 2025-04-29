@@ -3,8 +3,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:mail_merge/home.dart'; // Add this import
+import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 
 final GoogleSignIn _googleSignIn = GoogleSignIn(
   scopes: <String>[
@@ -153,17 +153,27 @@ Future<String?> getGoogleAccessToken() async {
 
 // Update the signOut function to clear cached data
 
-Future<void> signOut() async {
+Future<void> signOut(BuildContext? context) async {
   try {
-    // Clear cached data
+    // Clear ALL cached data thoroughly
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('cached_emails');
     await prefs.remove('cached_vip_emails');
     await prefs.remove('cached_vip_emails_by_contact');
+    // Also clear these to be thorough
+    await prefs.remove('cached_vip_contacts');
 
     // Then sign out
     await _googleSignIn.signOut();
     print('User signed out and cache cleared');
+
+    // Navigate to login screen if context is provided
+    if (context != null && context.mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const AddEmailAccountsPage()),
+        (route) => false, // Remove all previous routes
+      );
+    }
   } catch (e) {
     print('Error signing out: $e');
   }
