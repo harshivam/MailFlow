@@ -142,3 +142,14 @@ Future<String?> getGoogleAccessToken() async {
     return null;
   }
 }
+
+// Add this function to your existing file
+
+Future<void> signOut() async {
+  try {
+    await _googleSignIn.signOut();
+    print('User signed out');
+  } catch (e) {
+    print('Error signing out: $e');
+  }
+}

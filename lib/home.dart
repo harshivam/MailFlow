@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:mail_merge/attachments_hub/AttachmentsScreen.dart';
-import 'package:mail_merge/vip_inox/VipScreen.dart';
-import 'package:mail_merge/unsubscribe_manager/unsubscribe.dart';
+import 'package:mail_merge/features/attachments_hub/AttachmentsScreen.dart';
+import 'package:mail_merge/features/vip_inox/VipScreen.dart';
+import 'package:mail_merge/features/unsubscribe_manager/unsubscribe.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'dart:math'; // For the min function
+import 'package:mail_merge/settings/settings_screen.dart';
+import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -17,6 +19,7 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   int _selectedIndex = 0;
   String _accessToken = ""; // Initialize with empty string
+  final _chatListKey = GlobalKey<_ChatListState>();
 
   @override
   void initState() {
@@ -24,11 +27,14 @@ class _HomeState extends State<Home> {
     _getAccessToken(); // Get token when app starts
   }
 
+  // Update the _getAccessToken method to trigger fetchEmails via setState
   Future<void> _getAccessToken() async {
     final token = await getGoogleAccessToken();
     if (token != null && mounted) {
       setState(() {
         _accessToken = token;
+        // Setting a new access token will automatically trigger fetchEmails in ChatList
+        // because of the didUpdateWidget method in ChatList
       });
     }
   }
@@ -37,7 +43,7 @@ class _HomeState extends State<Home> {
   Widget build(BuildContext context) {
     // Create screens list inside build to use updated _accessToken
     final List<Widget> screens = [
-      ChatList(accessToken: _accessToken), // Pass current access token
+      ChatList(key: _chatListKey, accessToken: _accessToken),
       const VipScreen(),
       const Attachmentsscreen(),
       const UnsubscribeScreen(),
@@ -52,13 +58,32 @@ class _HomeState extends State<Home> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.black),
-            onPressed: () {
-              _getAccessToken(); // Refresh token
+            onPressed: () async {
+              // First check if we have a token
+              final token = await getGoogleAccessToken();
+
+              if (mounted) {
+                setState(() {
+                  _accessToken =
+                      token ?? ""; // Update token (might be null if logged out)
+                });
+
+                // If we're on the home tab and have a valid token
+                if (_selectedIndex == 0 && token != null) {
+                  _chatListKey.currentState
+                      ?.fetchEmails(); // Directly call refresh
+                }
+              }
             },
           ),
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.black),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
           ),
         ],
       ),
@@ -253,6 +278,8 @@ class _ChatListState extends State<ChatList> {
 
   @override
   Widget build(BuildContext context) {
+    // Update the "Sign in to view your emails" section
+
     if (widget.accessToken.isEmpty) {
       return Center(
         child: Column(
@@ -261,10 +288,16 @@ class _ChatListState extends State<ChatList> {
             const Text("Sign in to view your emails"),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () async {
-                await signInWithGoogle(context);
+              onPressed: () {
+                // Navigate to Add Email Accounts screen instead of direct sign-in
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddEmailAccountsPage(),
+                  ),
+                );
               },
-              child: const Text("Sign in with Google"),
+              child: const Text("Add Email Account"),
             ),
           ],
         ),
@@ -414,13 +447,23 @@ class ChatItem extends StatelessWidget {
     try {
       // Try to parse the RFC 2822 or similar format (standard email date format)
       DateTime? date;
-      
+
       // List of month abbreviations
       const List<String> months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
-      
+
       try {
         // Try standard format first
         date = DateTime.parse(timeString);
@@ -428,9 +471,9 @@ class ChatItem extends StatelessWidget {
         // If direct parsing fails, try to extract from email date format
         final RegExp dateRegex = RegExp(
           r'(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)',
-          caseSensitive: false
+          caseSensitive: false,
         );
-        
+
         final match = dateRegex.firstMatch(timeString);
         if (match != null) {
           final day = match.group(1);
@@ -439,7 +482,7 @@ class ChatItem extends StatelessWidget {
             return '$day $month'; // Return in "28 Apr" format
           }
         }
-        
+
         // Fallback to just using the date portion if available
         if (timeString.contains(',')) {
           final parts = timeString.split(',');
@@ -447,14 +490,14 @@ class ChatItem extends StatelessWidget {
             return parts[0]; // Often this is day and month
           }
         }
-        
+
         return timeString.substring(0, min(10, timeString.length));
       }
-      
+
       // If we successfully parsed the date, format it nicely
       final day = date!.day;
       final month = months[date.month - 1]; // Get month abbreviation
-      
+
       return '$day $month'; // Format as "28 Apr"
     } catch (e) {
       // If all else fails, just return a subset of the string
