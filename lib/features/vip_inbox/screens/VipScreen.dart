@@ -4,6 +4,8 @@ import 'package:mail_merge/features/email/widgets/email_item.dart';
 import 'package:mail_merge/features/email/services/email_service.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/features/vip_inbox/screens/contacts_screen.dart';
+import 'package:mail_merge/features/vip_inbox/screens/add_contact_screen.dart';
+import 'package:mail_merge/features/email/widgets/email_shimmer.dart';
 
 class VipScreen extends StatefulWidget {
   const VipScreen({super.key});
@@ -14,7 +16,8 @@ class VipScreen extends StatefulWidget {
 
 class _VipScreenState extends State<VipScreen> {
   List<Map<String, dynamic>> _vipEmails = [];
-  bool _isLoading = false;
+  bool _isLoading = true; // Initial loading state
+  bool _isRefreshing = false; // Separate state for refresh operations
   String? _accessToken;
 
   @override
@@ -23,14 +26,21 @@ class _VipScreenState extends State<VipScreen> {
     _loadVipEmails();
   }
 
-  Future<void> _loadVipEmails() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadVipEmails({bool refresh = false}) async {
+    if (refresh) {
+      setState(() => _isRefreshing = true);
+    } else if (!_isLoading) {
+      setState(() => _isLoading = true);
+    }
 
     try {
       // Get access token
       _accessToken = await getGoogleAccessToken();
       if (_accessToken == null) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _isRefreshing = false;
+        });
         return;
       }
 
@@ -41,15 +51,13 @@ class _VipScreenState extends State<VipScreen> {
         setState(() {
           _vipEmails = [];
           _isLoading = false;
+          _isRefreshing = false;
         });
         return;
       }
 
-      // Create a query parameter to filter emails server-side
-      // This uses Gmail's search syntax to filter by sender
+      // Build query from VIP contacts
       final vipEmails = vipContacts.map((c) => c.email.toLowerCase()).toList();
-
-      // Build a Gmail search query like: from:(email1@example.com OR email2@example.com)
       final fromQuery = 'from:(${vipEmails.join(' OR ')})';
 
       // Fetch emails with the query
@@ -59,81 +67,148 @@ class _VipScreenState extends State<VipScreen> {
         maxResults: 20,
       );
 
-      setState(() {
-        _vipEmails = vipFilteredEmails;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _vipEmails = vipFilteredEmails;
+          _isLoading = false;
+          _isRefreshing = false;
+        });
+      }
     } catch (e) {
       print('Error loading VIP emails: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isRefreshing = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+    // Only show shimmer for initial loading when there's no data
+    if (_isLoading && _vipEmails.isEmpty) {
+      return const EmailShimmerList(itemCount: 8);
     }
 
+    // Empty state with "Add VIP Contact" button
     if (_vipEmails.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.star, size: 80, color: Colors.amber),
-            const SizedBox(height: 16),
-            const Text(
-              'No VIP emails',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      return Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: () => _loadVipEmails(refresh: true),
+            child: ListView(
+              physics:
+                  const AlwaysScrollableScrollPhysics(), // Enable pull-to-refresh even when empty
+              children: [
+                SizedBox(height: MediaQuery.of(context).size.height / 4),
+                const Icon(Icons.star, size: 80, color: Colors.amber),
+                const SizedBox(height: 16),
+                const Text(
+                  'No VIP emails',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Add contacts to your VIP list to see their emails here',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 24),
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ContactsScreen(),
+                        ),
+                      ).then((_) => _loadVipEmails());
+                    },
+                    icon: const Icon(Icons.person_add),
+                    label: const Text('Manage VIP Contacts'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'Pull down to refresh',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Add contacts to your VIP list to see their emails here',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
+          ),
+          // Floating action button
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: () async {
+                final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const ContactsScreen(),
+                    builder: (context) => const AddContactScreen(),
                   ),
                 );
+
+                if (result == true) {
+                  _loadVipEmails();
+                }
               },
-              icon: const Icon(Icons.person_add),
-              label: const Text('Manage VIP Contacts'),
+              tooltip: 'Add VIP Contact',
+              child: const Icon(Icons.person_add),
             ),
-            const SizedBox(height: 16),
-            TextButton.icon(
-              onPressed: _loadVipEmails,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Refresh'),
-            ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadVipEmails,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _vipEmails.length,
-        itemBuilder: (context, index) {
-          final email = _vipEmails[index];
-          return EmailItem(
-            name: email["name"] ?? "Unknown",
-            subject: email["message"] ?? "",
-            time: email["time"] ?? "",
-            snippet: email["snippet"] ?? "",
-            avatar:
-                email["avatar"] ??
-                "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
-          );
-        },
-      ),
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: () => _loadVipEmails(refresh: true),
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _vipEmails.length,
+            itemBuilder: (context, index) {
+              final email = _vipEmails[index];
+              return EmailItem(
+                name: email["name"] ?? "Unknown",
+                subject: email["message"] ?? "",
+                time: email["time"] ?? "",
+                snippet: email["snippet"] ?? "",
+                avatar:
+                    email["avatar"] ??
+                    "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
+              );
+            },
+          ),
+        ),
+        // Floating action button
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton(
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AddContactScreen(),
+                ),
+              );
+
+              if (result == true) {
+                _loadVipEmails();
+              }
+            },
+            tooltip: 'Add VIP Contact',
+            child: const Icon(Icons.person_add),
+          ),
+        ),
+      ],
     );
   }
 }

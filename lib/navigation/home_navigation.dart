@@ -61,28 +61,6 @@ class _HomeNavigationState extends State<HomeNavigation> {
                 },
               ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            onPressed: () async {
-              // First check if we have a token
-              final token = await getGoogleAccessToken();
-
-              if (mounted) {
-                setState(() {
-                  _accessToken =
-                      token ?? ""; // Update token (might be null if logged out)
-                });
-
-                // If we're on the home tab and have a valid token
-                if (_selectedIndex == 0 && token != null) {
-                  _emailListKey.currentState
-                      ?.fetchEmails(); // Directly call refresh
-                }
-              }
-            },
-          ),
-        ],
       ),
       // Use the modular sidebar
       drawer: AppSidebar(
