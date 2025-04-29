@@ -3,10 +3,9 @@ import 'package:mail_merge/features/email/screens/email_list_screen.dart';
 import 'package:mail_merge/features/vip_inox/screens/VipScreen.dart';
 import 'package:mail_merge/features/attachments_hub/screens/AttachmentsScreen.dart';
 import 'package:mail_merge/features/unsubscribe_manager/screens/unsubscribe.dart';
-import 'package:mail_merge/settings/settings_screen.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/features/email/screens/compose_email_screen.dart';
-import 'package:mail_merge/user/authentication/add_email_accounts.dart';
+import 'package:mail_merge/navigation/app_sidebar.dart'; // Import the sidebar
 
 class HomeNavigation extends StatefulWidget {
   const HomeNavigation({super.key});
@@ -23,24 +22,15 @@ class _HomeNavigationState extends State<HomeNavigation> {
   @override
   void initState() {
     super.initState();
-
-    // Add this authentication check
-    _checkAuthentication();
+    _getAccessToken(); // Get token when app starts
   }
 
-  Future<void> _checkAuthentication() async {
+  // Update the _getAccessToken method to trigger fetchEmails via setState
+  Future<void> _getAccessToken() async {
     final token = await getGoogleAccessToken();
-
-    if (token == null && mounted) {
-      // No user is signed in, navigate to add email accounts
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const AddEmailAccountsPage()),
-      );
-    } else if (mounted) {
-      // User is signed in, update token
+    if (token != null && mounted) {
       setState(() {
-        _accessToken = token ?? "";
+        _accessToken = token;
       });
     }
   }
@@ -61,6 +51,16 @@ class _HomeNavigationState extends State<HomeNavigation> {
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
+        // Add hamburger menu icon
+        leading: Builder(
+          builder:
+              (context) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.black),
+                onPressed: () {
+                  Scaffold.of(context).openDrawer();
+                },
+              ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.black),
@@ -82,16 +82,16 @@ class _HomeNavigationState extends State<HomeNavigation> {
               }
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.black),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
-          ),
         ],
+      ),
+      // Use the modular sidebar
+      drawer: AppSidebar(
+        currentIndex: _selectedIndex,
+        onNavigate: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
       ),
       body: IndexedStack(index: _selectedIndex, children: screens),
       bottomNavigationBar: BottomNavigationBar(
@@ -103,14 +103,14 @@ class _HomeNavigationState extends State<HomeNavigation> {
         showSelectedLabels: false,
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
-        items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          const BottomNavigationBarItem(icon: Icon(Icons.star), label: "VIP"),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.star), label: "VIP"),
           BottomNavigationBarItem(
-            icon: Transform.scale(scale: 0.8, child: Icon(Icons.attach_file)),
+            icon: Icon(Icons.attach_file),
             label: "Attachments",
           ),
-          const BottomNavigationBarItem(
+          BottomNavigationBarItem(
             icon: Icon(Icons.unsubscribe),
             label: "Unsubscribe",
           ),
