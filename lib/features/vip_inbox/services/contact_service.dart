@@ -27,15 +27,24 @@ class ContactService {
   static Future<Contact> addContact(
     String name,
     String email, {
-    bool isVip = false,
+    bool isVip = true, // Changed the default to true
   }) async {
     final contacts = await getContacts();
 
     // Check if contact already exists
-    if (contacts.any((c) => c.email.toLowerCase() == email.toLowerCase())) {
-      throw Exception('Contact with this email already exists');
+    final existingIndex = contacts.indexWhere(
+      (c) => c.email.toLowerCase() == email.toLowerCase(),
+    );
+
+    if (existingIndex >= 0) {
+      // Update existing contact's VIP status
+      final updatedContact = contacts[existingIndex].copyWith(isVip: isVip);
+      contacts[existingIndex] = updatedContact;
+      await _saveContacts(contacts);
+      return updatedContact;
     }
 
+    // Create new contact
     final newContact = Contact(
       id: _uuid.v4(),
       name: name,
@@ -82,12 +91,26 @@ class ContactService {
     return updatedContact;
   }
 
-  // Delete a contact
-  static Future<void> deleteContact(String contactId) async {
+  // Remove a contact
+  static Future<bool> removeContact(String email) async {
     final contacts = await getContacts();
 
-    final updatedContacts = contacts.where((c) => c.id != contactId).toList();
-    await _saveContacts(updatedContacts);
+    final index = contacts.indexWhere(
+      (c) => c.email.toLowerCase() == email.toLowerCase(),
+    );
+
+    if (index >= 0) {
+      // Either remove completely or just unmark as VIP
+      final contact = contacts[index];
+      if (contact.isVip) {
+        // Update to not be VIP instead of removing
+        contacts[index] = contact.copyWith(isVip: false);
+        await _saveContacts(contacts);
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // Check if an email belongs to a VIP contact
@@ -105,5 +128,24 @@ class ContactService {
     await prefs.setStringList(_contactsKey, contactsJson);
   }
 
-  static removeContact(String senderEmail) {}
+  // Delete a contact completely
+  static Future<bool> deleteContact(String contactId) async {
+    try {
+      final contacts = await getContacts();
+
+      final index = contacts.indexWhere((c) => c.id == contactId);
+      if (index < 0) {
+        return false; // Contact not found
+      }
+
+      // Actually remove the contact from the list
+      contacts.removeAt(index);
+      await _saveContacts(contacts);
+
+      return true;
+    } catch (e) {
+      print('Error deleting contact: $e');
+      return false;
+    }
+  }
 }

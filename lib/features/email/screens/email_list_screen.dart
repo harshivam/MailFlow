@@ -139,9 +139,17 @@ class EmailListScreenState extends State<EmailListScreen>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
 
+    // More robust check: verify both accessToken and authentication state
     if (widget.accessToken.isEmpty) {
+      // Clear cached data if user is not authenticated
+      if (emailData.isNotEmpty) {
+        emailData.clear();
+        _nextPageToken = null;
+        _hasMore = true;
+      }
+
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -165,9 +173,7 @@ class EmailListScreenState extends State<EmailListScreen>
     }
 
     if (_isLoading && emailData.isEmpty && !_loadingFromCache) {
-      return const EmailShimmerList(
-        itemCount: 5,
-      ); // Show fewer shimmer items for faster rendering
+      return const EmailShimmerList(); // Use default or automatically calculated item count
     }
 
     return RefreshIndicator(

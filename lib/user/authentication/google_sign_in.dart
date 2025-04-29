@@ -3,6 +3,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:mail_merge/home.dart'; // Add this import
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 final GoogleSignIn _googleSignIn = GoogleSignIn(
   scopes: <String>[
@@ -149,12 +151,19 @@ Future<String?> getGoogleAccessToken() async {
   }
 }
 
-// Add this function to your existing file
+// Update the signOut function to clear cached data
 
 Future<void> signOut() async {
   try {
+    // Clear cached data
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('cached_emails');
+    await prefs.remove('cached_vip_emails');
+    await prefs.remove('cached_vip_emails_by_contact');
+
+    // Then sign out
     await _googleSignIn.signOut();
-    print('User signed out');
+    print('User signed out and cache cleared');
   } catch (e) {
     print('Error signing out: $e');
   }
