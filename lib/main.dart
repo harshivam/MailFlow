@@ -43,12 +43,24 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
   }
 
   Future<void> _checkLoginStatus() async {
-    final user = await getCurrentUser();
-    if (mounted) {
-      setState(() {
-        _isLoggedIn = user != null;
-        _isLoading = false;
-      });
+    try {
+      // Use the original Google Sign-In method for consistency
+      final user = await getCurrentUser();
+      
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = user != null;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error checking login status: $e');
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = false;
+          _isLoading = false;
+        });
+      }
     }
   }
 

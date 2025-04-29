@@ -6,7 +6,8 @@ import 'package:mail_merge/features/unsubscribe_manager/screens/unsubscribe.dart
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/features/email/screens/compose_email_screen.dart';
-import 'package:mail_merge/navigation/app_sidebar.dart'; // Import the sidebar
+import 'package:mail_merge/navigation/app_sidebar.dart';
+import 'package:mail_merge/user/services/auth_service.dart'; // Import the sidebar
 
 class HomeNavigation extends StatefulWidget {
   const HomeNavigation({super.key});
@@ -27,13 +28,29 @@ class _HomeNavigationState extends State<HomeNavigation> {
     _listenForAuthChanges(); // Add this
   }
 
-  // Update the _getAccessToken method to trigger fetchEmails via setState
+  // Update the _getAccessToken method to use our new AuthService
+
   Future<void> _getAccessToken() async {
-    final token = await getGoogleAccessToken();
-    if (token != null && mounted) {
-      setState(() {
-        _accessToken = token;
-      });
+    try {
+      // Use the original getGoogleAccessToken for now to maintain compatibility
+      final token = await getGoogleAccessToken();
+      
+      if (token != null && mounted) {
+        setState(() {
+          _accessToken = token;
+        });
+      } else {
+        // Handle null token case - maybe user needs to login
+        if (mounted) {
+          Navigator.pushReplacement(
+            context, 
+            MaterialPageRoute(builder: (context) => const AddEmailAccountsPage())
+          );
+        }
+      }
+    } catch (e) {
+      print('Error getting access token: $e');
+      // Handle error appropriately
     }
   }
 

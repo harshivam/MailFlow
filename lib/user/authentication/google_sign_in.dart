@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'package:mail_merge/home.dart'; // Add this import
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mail_merge/user/models/email_account.dart';
+import 'package:mail_merge/user/repository/account_repository.dart';
 
 final GoogleSignIn _googleSignIn = GoogleSignIn(
   scopes: <String>[
@@ -40,6 +42,9 @@ Future<void> signInWithGoogle(BuildContext context) async {
 
     print('Access Token: $accessToken');
     print('ID Token: $idToken');
+
+    // Add this line right before you navigate to Home
+    await syncCurrentUserToAccountSystem();
 
     // Navigate to Home screen after successful sign-in
     Navigator.pushReplacement(
@@ -134,17 +139,15 @@ Future<void> fetchEmailDetails(
   }
 }
 
-// Add this new function to get the access token
-
+// Add this function to maintain compatibility during transition
 Future<String?> getGoogleAccessToken() async {
   try {
     final GoogleSignInAccount? account = await _googleSignIn.signInSilently();
     if (account != null) {
       final GoogleSignInAuthentication auth = await account.authentication;
       return auth.accessToken;
-    } else {
-      return null;
     }
+    return null;
   } catch (error) {
     print('Error getting access token: $error');
     return null;
@@ -186,5 +189,36 @@ Future<GoogleSignInAccount?> getCurrentUser() async {
   } catch (e) {
     print('Error getting current user: $e');
     return null;
+  }
+}
+
+// Add this method right after getCurrentUser() or before signOut()
+Future<void> syncCurrentUserToAccountSystem() async {
+  try {
+    final GoogleSignInAccount? googleUser = await getCurrentUser();
+    if (googleUser == null) return;
+    
+    // Get authentication data
+    final GoogleSignInAuthentication auth = await googleUser.authentication;
+    
+    // Create email account object
+    final emailAccount = EmailAccount(
+      email: googleUser.email,
+      displayName: googleUser.displayName ?? googleUser.email,
+      provider: AccountProvider.gmail,
+      accessToken: auth.accessToken ?? '',
+      refreshToken: auth.idToken ?? '',
+      tokenExpiry: DateTime.now().add(const Duration(hours: 1)),
+      photoUrl: googleUser.photoUrl,
+      isDefault: true,
+    );
+    
+    // Add to account repository
+    final accountRepository = AccountRepository();
+    await accountRepository.addAccount(emailAccount);
+    
+    print('Current Google user synced to account system: ${googleUser.email}');
+  } catch (e) {
+    print('Error syncing current user to account system: $e');
   }
 }

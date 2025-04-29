@@ -140,20 +140,20 @@ class _VipScreenState extends State<VipScreen>
     // Store the current selected contact before refreshing
     final currentSelectedContact = _selectedContactEmail;
     
-    // Handle loading state based on whether this is a refresh or initial load
+    // Handle loading state
     if (refresh) {
       setState(() {
         _isRefreshing = true;
-        // Don't reset selectedContactEmail when refreshing
-        // _selectedContactEmail = null; <- Remove this line
+        // Don't reset selected contact
       });
     } else if (!_isLoading) {
       setState(() => _isLoading = true);
     }
 
     try {
-      // Get access token for API calls
+      // Get access token - use the original method for now
       _accessToken = await getGoogleAccessToken();
+      
       if (_accessToken == null) {
         setState(() {
           _isLoading = false;
@@ -161,7 +161,7 @@ class _VipScreenState extends State<VipScreen>
         });
         return;
       }
-
+      
       // Get VIP contacts
       final vipContacts = await ContactService.getVipContacts();
       _vipContacts = vipContacts;

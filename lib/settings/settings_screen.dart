@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
+import 'package:mail_merge/user/screens/manage_accounts_screen.dart';
+import 'package:mail_merge/user/services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,34 +18,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAccounts();
+    // Sync the current Google user before loading accounts
+    syncCurrentUserToAccountSystem().then((_) => _loadAccounts());
   }
 
   Future<void> _loadAccounts() async {
     setState(() => _isLoading = true);
 
     try {
-      // Get current account - modify this based on your existing implementation
-      final currentUser = await getCurrentUser();
-
-      if (currentUser != null) {
-        setState(() {
-          _accounts = [
-            {
-              "name": currentUser.displayName ?? "User",
-              "email": currentUser.email,
-              "photoUrl":
-                  currentUser.photoUrl ?? "https://via.placeholder.com/150",
-            },
-          ];
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _accounts = [];
-          _isLoading = false;
-        });
-      }
+      final authService = AuthService();
+      final accounts = await authService.getAllAccounts();
+      
+      setState(() {
+        _accounts = accounts.map((account) => {
+          "id": account.id,
+          "name": account.displayName,
+          "email": account.email,
+          "photoUrl": account.photoUrl ?? "https://via.placeholder.com/150",
+          "provider": account.provider.displayName,
+          "isDefault": account.isDefault,
+        }).toList();
+        _isLoading = false;
+      });
     } catch (e) {
       print('Error loading accounts: $e');
       setState(() => _isLoading = false);
@@ -93,8 +89,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       backgroundImage: NetworkImage(account["photoUrl"]),
                       backgroundColor: Colors.grey[300],
                     ),
-                    title: Text(account["name"]),
-                    subtitle: Text(account["email"]),
+                    title: Row(
+                      children: [
+                        Text(account["name"]),
+                        if (account["isDefault"])
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              'Default',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(account["email"]),
+                        Text(
+                          account["provider"],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    isThreeLine: true,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ManageAccountsScreen(),
+                        ),
+                      ).then((_) => _loadAccounts());
+                    },
                   ),
                 )
                 .toList(),

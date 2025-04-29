@@ -43,6 +43,7 @@ dependencies:
   shimmer: ^2.0.0
   shared_preferences: ^2.2.0
   uuid: ^4.2.1
+  flutter_secure_storage: ^8.0.0
 
 dev_dependencies:
   flutter_test:
