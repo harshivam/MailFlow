@@ -3,6 +3,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/settings/settings_screen.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
+import 'package:mail_merge/features/vip_inbox/screens/contacts_screen.dart';
 
 class AppSidebar extends StatelessWidget {
   final int currentIndex;
@@ -29,6 +30,19 @@ class AppSidebar extends StatelessWidget {
             index: 0,
             icon: Icons.inbox,
             title: 'Inbox',
+          ),
+
+          // Contacts option
+          ListTile(
+            leading: const Icon(Icons.contacts),
+            title: const Text('Contacts'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer first
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ContactsScreen()),
+              );
+            },
           ),
 
           const Divider(),
@@ -83,9 +97,9 @@ class AppSidebar extends StatelessWidget {
                 child: CircularProgressIndicator(color: Colors.white),
               );
             }
-      
+
             final user = snapshot.data;
-      
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -106,7 +120,11 @@ class AppSidebar extends StatelessWidget {
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                 ] else ...[
-                  const Icon(Icons.account_circle, size: 60, color: Colors.white),
+                  const Icon(
+                    Icons.account_circle,
+                    size: 60,
+                    color: Colors.white,
+                  ),
                   const SizedBox(height: 8),
                   const Text(
                     'Not signed in',

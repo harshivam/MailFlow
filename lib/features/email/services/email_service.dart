@@ -43,7 +43,11 @@ class EmailService {
         final hasMore = nextPageToken != null;
 
         if (messages == null || messages.isEmpty) {
-          return EmailPageResult(emails: [], nextPageToken: null, hasMore: false);
+          return EmailPageResult(
+            emails: [],
+            nextPageToken: null,
+            hasMore: false,
+          );
         }
 
         List<Map<String, dynamic>> emailsData = [];
@@ -70,6 +74,38 @@ class EmailService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> fetchAllEmails({
+    int maxResults = 100,
+  }) async {
+    if (accessToken.isEmpty) {
+      return [];
+    }
+
+    try {
+      List<Map<String, dynamic>> allEmails = [];
+      String? pageToken;
+      bool hasMore = true;
+
+      // Fetch emails page by page until we have enough or there are no more
+      while (hasMore && allEmails.length < maxResults) {
+        final result = await fetchEmails(pageToken: pageToken);
+        allEmails.addAll(result.emails);
+
+        pageToken = result.nextPageToken;
+        hasMore = result.hasMore;
+
+        if (allEmails.length >= maxResults) {
+          break;
+        }
+      }
+
+      return allEmails;
+    } catch (e) {
+      print('Error fetching all emails: $e');
+      return [];
+    }
+  }
+
   Future<Map<String, dynamic>?> _fetchEmailDetails(String messageId) async {
     try {
       final detailResponse = await http.get(
@@ -89,6 +125,7 @@ class EmailService {
 
         String subject = 'No Subject';
         String sender = 'Unknown';
+        String from = ''; // Add this line
         String time = '';
         String avatar =
             'https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png';
@@ -98,6 +135,7 @@ class EmailService {
             subject = header['value'];
           } else if (header['name'] == 'From') {
             sender = header['value'];
+            from = header['value']; // Add this line
             if (sender.contains('<')) {
               sender = sender.split('<')[0].trim();
               if (sender.startsWith('"') && sender.endsWith('"')) {
@@ -129,9 +167,11 @@ class EmailService {
           print('Error fetching profile picture: $e');
         }
 
+        // Add 'from' to your return value
         return {
           "id": messageId,
           "name": sender,
+          "from": from, // Add this line
           "message": subject,
           "snippet": snippet,
           "time": time,
@@ -142,6 +182,52 @@ class EmailService {
     } catch (e) {
       print('Error fetching email details: $e');
       return null;
+    }
+  }
+
+  // Add this method to fetch emails with a specific query
+  Future<List<Map<String, dynamic>>> fetchEmailsWithQuery(
+    String query, {
+    int maxResults = 20,
+  }) async {
+    if (accessToken.isEmpty) {
+      return [];
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://www.googleapis.com/gmail/v1/users/me/messages?q=$query&maxResults=$maxResults',
+        ),
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final messages = data['messages'] as List<dynamic>?;
+
+        if (messages == null || messages.isEmpty) {
+          return [];
+        }
+
+        List<Map<String, dynamic>> emailData = [];
+
+        // Process only first 20 messages for better performance
+        for (var message in messages.take(maxResults)) {
+          final details = await _fetchEmailDetails(message['id']);
+          if (details != null) {
+            emailData.add(details);
+          }
+        }
+
+        return emailData;
+      } else {
+        print('Error fetching emails with query: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('Error fetching emails with query: $e');
+      return [];
     }
   }
 }

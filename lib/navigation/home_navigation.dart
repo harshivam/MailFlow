@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/features/email/screens/email_list_screen.dart';
-import 'package:mail_merge/features/vip_inox/screens/VipScreen.dart';
+import 'package:mail_merge/features/vip_inbox/screens/VipScreen.dart';
 import 'package:mail_merge/features/attachments_hub/screens/AttachmentsScreen.dart';
 import 'package:mail_merge/features/unsubscribe_manager/screens/unsubscribe.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
@@ -104,7 +104,7 @@ class _HomeNavigationState extends State<HomeNavigation> {
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.inbox), label: "Inbox"),
           BottomNavigationBarItem(icon: Icon(Icons.star), label: "VIP"),
           BottomNavigationBarItem(
             icon: Icon(Icons.attach_file),
