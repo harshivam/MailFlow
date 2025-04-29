@@ -104,4 +104,6 @@ class ContactService {
 
     await prefs.setStringList(_contactsKey, contactsJson);
   }
+
+  static removeContact(String senderEmail) {}
 }

@@ -201,6 +201,7 @@ class EmailListScreenState extends State<EmailListScreen>
                     avatar:
                         email["avatar"] ??
                         "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
+                    emailData: email, // Pass the complete email data
                   );
                 },
               ),

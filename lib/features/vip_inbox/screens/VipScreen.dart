@@ -183,6 +183,7 @@ class _VipScreenState extends State<VipScreen> {
                 avatar:
                     email["avatar"] ??
                     "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
+                emailData: email, // Pass the complete email data
               );
             },
           ),
