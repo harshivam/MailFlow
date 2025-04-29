@@ -5,7 +5,13 @@ import 'dart:convert';
 import 'package:mail_merge/home.dart'; // Add this import
 
 final GoogleSignIn _googleSignIn = GoogleSignIn(
-  scopes: <String>['email', 'https://www.googleapis.com/auth/gmail.readonly'],
+  scopes: <String>[
+    'email',
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/gmail.labels',
+  ],
 );
 
 Future<void> signInWithGoogle(BuildContext context) async {
@@ -151,5 +157,15 @@ Future<void> signOut() async {
     print('User signed out');
   } catch (e) {
     print('Error signing out: $e');
+  }
+}
+
+// Add this to your google_sign_in.dart file
+Future<GoogleSignInAccount?> getCurrentUser() async {
+  try {
+    return _googleSignIn.currentUser ?? await _googleSignIn.signInSilently();
+  } catch (e) {
+    print('Error getting current user: $e');
+    return null;
   }
 }

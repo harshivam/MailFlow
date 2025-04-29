@@ -79,6 +79,24 @@ class AddEmailAccountsPage extends StatelessWidget {
           ],
         ),
       ),
+      // Add a persistent footer note as an additional reminder
+      persistentFooterButtons: [
+        Padding(
+          padding: const EdgeInsets.only(bottom :12.0),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "You can manage your email accounts anytime from Settings → Accounts",
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

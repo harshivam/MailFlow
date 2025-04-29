@@ -1,8 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
+import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  List<Map<String, dynamic>> _accounts = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccounts();
+  }
+
+  Future<void> _loadAccounts() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Get current account - modify this based on your existing implementation
+      final currentUser = await getCurrentUser();
+
+      if (currentUser != null) {
+        setState(() {
+          _accounts = [
+            {
+              "name": currentUser.displayName ?? "User",
+              "email": currentUser.email,
+              "photoUrl":
+                  currentUser.photoUrl ?? "https://via.placeholder.com/150",
+            },
+          ];
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _accounts = [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading accounts: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +65,7 @@ class SettingsScreen extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(left: 16, top: 16, bottom: 8),
             child: Text(
-              "ACCOUNT",
+              "ACCOUNTS",
               style: TextStyle(
                 color: Colors.grey,
                 fontSize: 14,
@@ -27,7 +73,56 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ),
-          
+
+          // Show accounts or loading indicator
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_accounts.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text("No accounts signed in"),
+            )
+          else
+            ..._accounts
+                .map(
+                  (account) => ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: NetworkImage(account["photoUrl"]),
+                      backgroundColor: Colors.grey[300],
+                    ),
+                    title: Text(account["name"]),
+                    subtitle: Text(account["email"]),
+                  ),
+                )
+                .toList(),
+
+          // Add account button
+          ListTile(
+            leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
+            title: const Text(
+              "Add email account",
+              style: TextStyle(color: Colors.blue),
+            ),
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AddEmailAccountsPage(),
+                ),
+              );
+
+              // If account was added, reload the list
+              if (result == true) {
+                _loadAccounts();
+              }
+            },
+          ),
+
+          const Divider(),
+
           // Logout option
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
@@ -36,38 +131,44 @@ class SettingsScreen extends StatelessWidget {
               // Show confirmation dialog
               final shouldLogout = await showDialog<bool>(
                 context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text("Log out"),
-                  content: const Text("Are you sure you want to log out?"),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text("CANCEL"),
+                builder:
+                    (context) => AlertDialog(
+                      title: const Text("Log out"),
+                      content: const Text("Are you sure you want to log out?"),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text("CANCEL"),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text(
+                            "LOG OUT",
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
                     ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text("LOG OUT", style: TextStyle(color: Colors.red)),
-                    ),
-                  ],
-                ),
               );
-              
+
               if (shouldLogout == true) {
                 await signOut(); // Call sign out function
-                
+
                 // Show confirmation and return to home
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Logged out successfully")),
                   );
-                  Navigator.pop(context); // Go back to home screen
+
+                  // Reload accounts after logout
+                  _loadAccounts();
                 }
               }
             },
           ),
-          
+
           const Divider(),
-          
+
           // App section
           const Padding(
             padding: EdgeInsets.only(left: 16, top: 16, bottom: 8),
@@ -80,7 +181,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ),
-          
+
           // App version
           const ListTile(
             leading: Icon(Icons.info_outline),
