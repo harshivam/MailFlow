@@ -13,64 +13,65 @@ class EmailPageResult {
   });
 }
 
+class EmailResult {
+  final List<Map<String, dynamic>> emails;
+  final String? nextPageToken;
+  final bool hasMore;
+
+  EmailResult(this.emails, this.nextPageToken, this.hasMore);
+}
+
 class EmailService {
   final String accessToken;
 
   EmailService(this.accessToken);
 
-  Future<EmailPageResult> fetchEmails({String? pageToken}) async {
+  Future<EmailResult> fetchEmails({
+    String? pageToken,
+    int maxResults = 15,
+  }) async {
     if (accessToken.isEmpty) {
-      return EmailPageResult(emails: [], nextPageToken: null, hasMore: false);
+      return EmailResult([], null, false);
     }
 
     try {
-      final uri = Uri.parse(
-        'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=25${pageToken != null ? '&pageToken=$pageToken' : ''}',
-      );
-
+      // Use a smaller batch size to load initial emails faster
       final response = await http.get(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Accept': 'application/json',
-        },
+        Uri.parse(
+          'https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=$maxResults${pageToken != null ? '&pageToken=$pageToken' : ''}',
+        ),
+        headers: {'Authorization': 'Bearer $accessToken'},
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final messages = data['messages'] as List?;
-        final nextPageToken = data['nextPageToken'];
-        final hasMore = nextPageToken != null;
+        final data = jsonDecode(response.body);
+        final messages = data['messages'] as List<dynamic>?;
+        final nextPageToken = data['nextPageToken'] as String?;
 
         if (messages == null || messages.isEmpty) {
-          return EmailPageResult(
-            emails: [],
-            nextPageToken: null,
-            hasMore: false,
-          );
+          return EmailResult([], null, false);
         }
 
-        List<Map<String, dynamic>> emailsData = [];
-
-        for (var message in messages) {
-          final messageId = message['id'];
-          final email = await _fetchEmailDetails(messageId);
-          if (email != null) {
-            emailsData.add(email);
-          }
-        }
-
-        return EmailPageResult(
-          emails: emailsData,
-          nextPageToken: nextPageToken,
-          hasMore: hasMore,
+        // Use parallel processing for fetching email details
+        final futures = messages.map(
+          (message) => _fetchEmailDetails(message['id']),
         );
+        final emailDetails = await Future.wait(futures);
+
+        final emailData =
+            emailDetails
+                .where((detail) => detail != null)
+                .cast<Map<String, dynamic>>()
+                .toList();
+
+        return EmailResult(emailData, nextPageToken, nextPageToken != null);
       } else {
-        throw Exception('Failed to fetch emails: ${response.body}');
+        print('Error fetching emails: ${response.statusCode}');
+        return EmailResult([], null, false);
       }
     } catch (e) {
-      print('Error in fetchEmails: $e');
-      rethrow;
+      print('Error fetching emails: $e');
+      return EmailResult([], null, false);
     }
   }
 
@@ -188,7 +189,7 @@ class EmailService {
   // Add this method to fetch emails with a specific query
   Future<List<Map<String, dynamic>>> fetchEmailsWithQuery(
     String query, {
-    int maxResults = 20,
+    int maxResults = 15, // Reduced for faster loading
   }) async {
     if (accessToken.isEmpty) {
       return [];
@@ -210,17 +211,16 @@ class EmailService {
           return [];
         }
 
-        List<Map<String, dynamic>> emailData = [];
+        // Use parallel processing with Future.wait for better performance
+        final futures = messages.map(
+          (message) => _fetchEmailDetails(message['id']),
+        );
+        final emailDetails = await Future.wait(futures);
 
-        // Process only first 20 messages for better performance
-        for (var message in messages.take(maxResults)) {
-          final details = await _fetchEmailDetails(message['id']);
-          if (details != null) {
-            emailData.add(details);
-          }
-        }
-
-        return emailData;
+        return emailDetails
+            .where((detail) => detail != null)
+            .cast<Map<String, dynamic>>()
+            .toList();
       } else {
         print('Error fetching emails with query: ${response.statusCode}');
         return [];

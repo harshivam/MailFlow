@@ -3,6 +3,8 @@ import 'package:mail_merge/features/email/widgets/email_item.dart';
 import 'package:mail_merge/features/email/widgets/email_shimmer.dart';
 import 'package:mail_merge/features/email/services/email_service.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class EmailListScreen extends StatefulWidget {
   final String accessToken;
@@ -13,7 +15,8 @@ class EmailListScreen extends StatefulWidget {
   State<EmailListScreen> createState() => EmailListScreenState();
 }
 
-class EmailListScreenState extends State<EmailListScreen> {
+class EmailListScreenState extends State<EmailListScreen>
+    with AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> emailData = [];
   bool _isLoading = false;
   bool _hasMore = true;
@@ -21,13 +24,20 @@ class EmailListScreenState extends State<EmailListScreen> {
   final ScrollController _scrollController = ScrollController();
   late EmailService _emailService;
 
+  // Add cache flag
+  bool _loadingFromCache = false;
+
+  @override
+  bool get wantKeepAlive => true; // Keep state when switching tabs
+
   @override
   void initState() {
     super.initState();
     _emailService = EmailService(widget.accessToken);
 
     if (widget.accessToken.isNotEmpty) {
-      fetchEmails();
+      _loadCachedEmails(); // Load from cache first
+      fetchEmails(); // Then fetch fresh data
     }
 
     _scrollController.addListener(() {
@@ -38,6 +48,38 @@ class EmailListScreenState extends State<EmailListScreen> {
         fetchEmails();
       }
     });
+  }
+
+  // Load emails from cache
+  Future<void> _loadCachedEmails() async {
+    try {
+      _loadingFromCache = true;
+      final prefs = await SharedPreferences.getInstance();
+      final cachedData = prefs.getString('cached_emails');
+
+      if (cachedData != null) {
+        final List<dynamic> decodedData = jsonDecode(cachedData);
+        setState(() {
+          emailData = List<Map<String, dynamic>>.from(
+            decodedData.map((item) => Map<String, dynamic>.from(item)),
+          );
+        });
+      }
+      _loadingFromCache = false;
+    } catch (e) {
+      print('Error loading cached emails: $e');
+      _loadingFromCache = false;
+    }
+  }
+
+  // Cache emails for faster loading next time
+  Future<void> _cacheEmails() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cached_emails', jsonEncode(emailData));
+    } catch (e) {
+      print('Error caching emails: $e');
+    }
   }
 
   @override
@@ -64,6 +106,9 @@ class EmailListScreenState extends State<EmailListScreen> {
   Future<void> fetchEmails({bool refresh = false}) async {
     if (widget.accessToken.isEmpty || (!_hasMore && !refresh)) return;
 
+    if (_isLoading && !refresh)
+      return; // Prevent multiple simultaneous requests
+
     setState(() {
       _isLoading = true;
     });
@@ -83,6 +128,9 @@ class EmailListScreenState extends State<EmailListScreen> {
         _hasMore = result.hasMore;
         _isLoading = false;
       });
+
+      // Cache the results for next time
+      _cacheEmails();
     } catch (e) {
       print('Error fetching emails: $e');
       setState(() => _isLoading = false);
@@ -91,6 +139,8 @@ class EmailListScreenState extends State<EmailListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+
     if (widget.accessToken.isEmpty) {
       return Center(
         child: Column(
@@ -114,8 +164,10 @@ class EmailListScreenState extends State<EmailListScreen> {
       );
     }
 
-    if (_isLoading && emailData.isEmpty) {
-      return const EmailShimmerList(); // Shimmer effect during loading
+    if (_isLoading && emailData.isEmpty && !_loadingFromCache) {
+      return const EmailShimmerList(
+        itemCount: 5,
+      ); // Show fewer shimmer items for faster rendering
     }
 
     return RefreshIndicator(
@@ -133,6 +185,11 @@ class EmailListScreenState extends State<EmailListScreen> {
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Center(child: CircularProgressIndicator()),
                     );
+                  }
+
+                  // Don't access emailData if index is out of bounds
+                  if (index >= emailData.length) {
+                    return const SizedBox.shrink();
                   }
 
                   final email = emailData[index];
