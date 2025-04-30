@@ -154,6 +154,7 @@ class AppSidebar extends StatelessWidget {
                       : null,
                   backgroundColor: Colors.grey[300],
                   foregroundColor: Colors.white,
+                  radius: 30,
                   child: defaultAccount.photoUrl == null
                       ? Text(
                           defaultAccount.displayName.isNotEmpty
@@ -165,7 +166,6 @@ class AppSidebar extends StatelessWidget {
                           ),
                         )
                       : null,
-                  radius: 30,
                 ),
                 const SizedBox(height: 8),
                 Text(

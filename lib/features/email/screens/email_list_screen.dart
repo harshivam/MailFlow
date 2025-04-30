@@ -6,6 +6,8 @@ import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:mail_merge/core/services/event_bus.dart';
+import 'dart:async';
 
 class EmailListScreen extends StatefulWidget {
   final String accessToken;
@@ -27,6 +29,9 @@ class EmailListScreenState extends State<EmailListScreen>
 
   // Add cache flag
   bool _loadingFromCache = false;
+
+  // In the EmailListScreenState class, add:
+  StreamSubscription? _accountSubscription;
 
   @override
   bool get wantKeepAlive => true; // Keep state when switching tabs
@@ -52,11 +57,11 @@ class EmailListScreenState extends State<EmailListScreen>
   @override
   void initState() {
     super.initState();
-    _emailService = UnifiedEmailService();  // No need to pass access token anymore
+    _emailService = UnifiedEmailService();
     checkAuthAndClearIfNeeded();
 
-    _loadCachedEmails(); // Load from cache first
-    fetchEmails(); // Then fetch fresh data
+    _loadCachedEmails();
+    fetchEmails();
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -64,6 +69,14 @@ class EmailListScreenState extends State<EmailListScreen>
           !_isLoading &&
           _hasMore) {
         fetchEmails();
+      }
+    });
+
+    // Listen for account events
+    _accountSubscription = eventBus.on<AccountRemovedEvent>().listen((_) {
+      // Refresh emails when an account is removed
+      if (mounted) {
+        fetchEmails(refresh: true);
       }
     });
   }
@@ -109,13 +122,15 @@ class EmailListScreenState extends State<EmailListScreen>
   @override
   void dispose() {
     _scrollController.dispose();
+    _accountSubscription?.cancel();
     super.dispose();
   }
 
   Future<void> fetchEmails({bool refresh = false}) async {
     if (!_hasMore && !refresh) return;
 
-    if (_isLoading && !refresh) return; // Prevent multiple simultaneous requests
+    if (_isLoading && !refresh)
+      return; // Prevent multiple simultaneous requests
 
     setState(() {
       _isLoading = true;

@@ -18,7 +18,7 @@ class AuthService {
   final OutlookAuthService _outlookAuthService = OutlookAuthService();
   final RediffmailAuthService _rediffmailAuthService = RediffmailAuthService();
   final AccountRepository _accountRepository = AccountRepository();
-  
+
   // Get auth service based on provider
   EmailAuthService _getProviderService(AccountProvider provider) {
     switch (provider) {
@@ -30,7 +30,7 @@ class AuthService {
         return _rediffmailAuthService;
     }
   }
-  
+
   // Sign in with a specific provider
   Future<EmailAccount?> signInWithProvider(
     AccountProvider provider,
@@ -38,7 +38,7 @@ class AuthService {
   ) async {
     final service = _getProviderService(provider);
     final account = await service.signIn(context);
-    
+
     if (account != null) {
       // Make this account default if there are no other accounts
       final accounts = await _accountRepository.getAllAccounts();
@@ -48,69 +48,75 @@ class AuthService {
         await _accountRepository.addAccount(account);
       }
     }
-    
+
     return account;
   }
-  
+
   // Get all accounts
   Future<List<EmailAccount>> getAllAccounts() {
     return _accountRepository.getAllAccounts();
   }
-  
+
   // Get default account
   Future<EmailAccount?> getDefaultAccount() {
     return _accountRepository.getDefaultAccount();
   }
-  
+
   // Set default account
   Future<void> setDefaultAccount(String accountId) {
     return _accountRepository.setDefaultAccount(accountId);
   }
-  
+
   // Remove an account
   Future<void> removeAccount(String accountId) async {
     // Get the account details first
     final accounts = await _accountRepository.getAllAccounts();
-    
+
     // Extra check: if there are no accounts, just return
     if (accounts.isEmpty) return;
-    
+
+    final isLastAccount = accounts.length <= 1;
+
     final accountToRemove = accounts.firstWhere(
       (acc) => acc.id == accountId,
       orElse: () => throw Exception('Account not found'),
     );
-    
+
     // Sign out from the provider
     final service = _getProviderService(accountToRemove.provider);
     await service.signOut();
-    
+
     // Remove from storage
     await _accountRepository.deleteAccount(accountId);
-    
-    // If this was the last account, clear all cache
-    if (accounts.length <= 1) {
+
+    // If this is the last/only account, do a complete cleanup
+    if (isLastAccount) {
+      // Clear all cached data
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('cached_emails');
       await prefs.remove('cached_vip_emails');
       await prefs.remove('cached_vip_emails_by_contact');
       await prefs.remove('cached_vip_contacts');
+
+      // Additional cleanup as needed for your app
+      // This ensures a clean slate when the user logs out completely
     }
   }
-  
+
   // Sign out from all accounts
   Future<void> signOutAll() async {
     final accounts = await _accountRepository.getAllAccounts();
-    
+
     // Sign out from each account
     for (final account in accounts) {
       final service = _getProviderService(account.provider);
       await service.signOut();
     }
-    
+
     // Clear cached data
     // This would be implemented according to your caching strategy
   }
-  
+
   // Get a valid access token for an account
   Future<String?> getAccessToken(String accountId) async {
     final accounts = await _accountRepository.getAllAccounts();
@@ -118,21 +124,23 @@ class AuthService {
       (acc) => acc.id == accountId,
       orElse: () => throw Exception('Account not found'),
     );
-    
+
     // Check if token is expired
     if (DateTime.now().isAfter(account.tokenExpiry)) {
       // Try to refresh the token
-      return await _getProviderService(account.provider).refreshToken(accountId);
+      return await _getProviderService(
+        account.provider,
+      ).refreshToken(accountId);
     }
-    
+
     return account.accessToken;
   }
-  
+
   // Get a valid access token for the default account
   Future<String?> getDefaultAccessToken() async {
     final defaultAccount = await _accountRepository.getDefaultAccount();
     if (defaultAccount == null) return null;
-    
+
     return await getAccessToken(defaultAccount.id);
   }
 }

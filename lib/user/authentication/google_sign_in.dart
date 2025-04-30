@@ -139,22 +139,56 @@ Future<void> fetchEmailDetails(
   }
 }
 
-// Add this function to maintain compatibility during transition
 Future<String?> getGoogleAccessToken() async {
   try {
+    print('DEBUG: getGoogleAccessToken called');
+    
+    // First check if we have tokens stored in the account repository
+    final accountRepository = AccountRepository();
+    final defaultAccount = await accountRepository.getDefaultAccount();
+    
+    if (defaultAccount != null && 
+        defaultAccount.provider == AccountProvider.gmail &&
+        defaultAccount.accessToken.isNotEmpty) {
+      // Check if token has expired
+      final now = DateTime.now();
+      if (now.isBefore(defaultAccount.tokenExpiry)) {
+        print('DEBUG: Using stored token for ${defaultAccount.email}');
+        return defaultAccount.accessToken;
+      }
+      
+      // Token expired, try to refresh with Google Sign-In
+      print('DEBUG: Token expired, trying to refresh');
+    }
+    
+    // If no stored token or it expired, try to get from Google Sign-In
     final GoogleSignInAccount? account = await _googleSignIn.signInSilently();
+    print('DEBUG: signInSilently returned: ${account != null ? account.email : "null"}');
+    
     if (account != null) {
       final GoogleSignInAuthentication auth = await account.authentication;
+      print('DEBUG: Got access token for ${account.email}');
+      
+      // Update the stored token
+      if (defaultAccount != null) {
+        await accountRepository.updateAccountTokens(
+          accountId: defaultAccount.id,
+          accessToken: auth.accessToken ?? '',
+          refreshToken: auth.idToken ?? '',
+          tokenExpiry: DateTime.now().add(const Duration(hours: 1)),
+        );
+      }
+      
       return auth.accessToken;
     }
+    
+    print('DEBUG: No Google account, returning null token');
     return null;
   } catch (error) {
-    print('Error getting access token: $error');
+    print('ERROR getting access token: $error');
     return null;
   }
 }
-
-// Update the signOut function to clear cached data
 
 Future<void> signOut(BuildContext? context) async {
   try {
@@ -163,10 +197,16 @@ Future<void> signOut(BuildContext? context) async {
     await prefs.remove('cached_emails');
     await prefs.remove('cached_vip_emails');
     await prefs.remove('cached_vip_emails_by_contact');
-    // Also clear these to be thorough
     await prefs.remove('cached_vip_contacts');
 
-    // Then sign out
+    // Also clear the account repository (secure storage)
+    final accountRepository = AccountRepository();
+    final accounts = await accountRepository.getAllAccounts();
+    for (final account in accounts) {
+      await accountRepository.deleteAccount(account.id);
+    }
+
+    // Then sign out from Google
     await _googleSignIn.signOut();
     print('User signed out and cache cleared');
 
@@ -182,7 +222,6 @@ Future<void> signOut(BuildContext? context) async {
   }
 }
 
-// Add this to your google_sign_in.dart file
 Future<GoogleSignInAccount?> getCurrentUser() async {
   try {
     return _googleSignIn.currentUser ?? await _googleSignIn.signInSilently();
@@ -192,15 +231,14 @@ Future<GoogleSignInAccount?> getCurrentUser() async {
   }
 }
 
-// Add this method right after getCurrentUser() or before signOut()
 Future<void> syncCurrentUserToAccountSystem() async {
   try {
     final GoogleSignInAccount? googleUser = await getCurrentUser();
     if (googleUser == null) return;
-    
+
     // Get authentication data
     final GoogleSignInAuthentication auth = await googleUser.authentication;
-    
+
     // Create email account object
     final emailAccount = EmailAccount(
       email: googleUser.email,
@@ -212,11 +250,11 @@ Future<void> syncCurrentUserToAccountSystem() async {
       photoUrl: googleUser.photoUrl,
       isDefault: true,
     );
-    
+
     // Add to account repository
     final accountRepository = AccountRepository();
     await accountRepository.addAccount(emailAccount);
-    
+
     print('Current Google user synced to account system: ${googleUser.email}');
   } catch (e) {
     print('Error syncing current user to account system: $e');

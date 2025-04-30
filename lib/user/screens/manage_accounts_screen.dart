@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:mail_merge/user/models/email_account.dart';
 import 'package:mail_merge/user/services/auth_service.dart';
 import 'package:mail_merge/user/screens/add_email_accounts_screen.dart';
+import 'package:mail_merge/user/authentication/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mail_merge/core/services/event_bus.dart';
 
 class ManageAccountsScreen extends StatefulWidget {
   const ManageAccountsScreen({super.key});
@@ -42,45 +45,45 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
       appBar: AppBar(
         title: const Text('Manage Accounts'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadAccounts,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadAccounts),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Expanded(
-                  child: _accounts.isEmpty
-                      ? _buildEmptyState()
-                      : _buildAccountsList(),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AddEmailAccountsScreen(),
-                        ),
-                      );
-                      
-                      if (result == true) {
-                        _loadAccounts();
-                      }
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Account'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                children: [
+                  Expanded(
+                    child:
+                        _accounts.isEmpty
+                            ? _buildEmptyState()
+                            : _buildAccountsList(),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => const AddEmailAccountsScreen(),
+                          ),
+                        );
+
+                        if (result == true) {
+                          _loadAccounts();
+                        }
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Account'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
     );
   }
 
@@ -115,19 +118,21 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundImage: account.photoUrl != null
-                  ? NetworkImage(account.photoUrl!)
-                  : null,
+              backgroundImage:
+                  account.photoUrl != null
+                      ? NetworkImage(account.photoUrl!)
+                      : null,
               backgroundColor: Colors.grey[300],
-              child: account.photoUrl == null
-                  ? Text(
-                      account.displayName[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+              child:
+                  account.photoUrl == null
+                      ? Text(
+                        account.displayName[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                      : null,
             ),
             title: Text(account.displayName),
             subtitle: Column(
@@ -150,10 +155,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                   const Padding(
                     padding: EdgeInsets.only(right: 8.0),
                     child: Chip(
-                      label: Text(
-                        'Default',
-                        style: TextStyle(fontSize: 12),
-                      ),
+                      label: Text('Default', style: TextStyle(fontSize: 12)),
                       backgroundColor: Colors.blue,
                       labelStyle: TextStyle(color: Colors.white),
                       padding: EdgeInsets.all(0),
@@ -197,44 +199,46 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
   }
 
   Future<void> _confirmDeleteAccount(EmailAccount account) async {
-    // Special handling for last account
-    if (_accounts.length == 1) {
+    // Check if this is the only account
+    final isOnlyAccount = _accounts.length == 1;
+
+    if (isOnlyAccount) {
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Remove Last Account'),
-          content: const Text(
-            'This is your last account. Removing it will sign you out completely. Continue?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('CANCEL'),
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Sign Out'),
+              content: const Text(
+                'This is your only account. Removing it will sign you out completely. Continue?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('CANCEL'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text(
+                    'SIGN OUT',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('REMOVE & SIGN OUT', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
       );
 
       if (confirmed == true) {
         try {
-          await _authService.removeAccount(account.id);
-          
-          // Sign out completely and navigate to add account screen
-          if (mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const AddEmailAccountsScreen()),
-              (route) => false,
-            );
-          }
+          // Use the signOut method instead of just removeAccount
+          // This ensures all account data is properly cleaned up
+          await signOut(context);
+
+          // No need to navigate - signOut already handles this
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error removing account: $e')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Error signing out: $e')));
           }
         }
       }
@@ -242,28 +246,49 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
       // Regular confirmation for non-last accounts
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Remove Account'),
-          content: Text(
-            'Are you sure you want to remove ${account.displayName} (${account.email})?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('CANCEL'),
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Remove Account'),
+              content: Text(
+                'Are you sure you want to remove ${account.displayName} (${account.email})?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('CANCEL'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text(
+                    'REMOVE',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('REMOVE', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
       );
 
       if (confirmed == true) {
         try {
           await _authService.removeAccount(account.id);
-          _loadAccounts();
+
+          // Also clear email cache for this account to prevent stale data
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('cached_emails');
+          await prefs.remove('cached_vip_emails');
+          await prefs.remove('cached_vip_emails_by_contact');
+          await prefs.remove('cached_vip_contacts');
+
+          // Notify listeners that an account was removed
+          _notifyAccountRemoved();
+
+          _loadAccounts(); // Refresh the list
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Account ${account.email} removed')),
+            );
+          }
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -273,5 +298,10 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
         }
       }
     }
+  }
+
+  void _notifyAccountRemoved() {
+    // Fire an event to notify that an account was removed
+    eventBus.fire(AccountRemovedEvent(''));
   }
 }

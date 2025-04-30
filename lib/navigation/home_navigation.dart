@@ -24,33 +24,57 @@ class _HomeNavigationState extends State<HomeNavigation> {
   @override
   void initState() {
     super.initState();
-    _getAccessToken(); // Get token when app starts
     _listenForAuthChanges(); // Add this
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Try to sync the Google user to our account system
+    // This helps ensure we have account data saved
+    syncCurrentUserToAccountSystem().then((_) {
+      _getAccessToken();
+    });
   }
 
   // Update the _getAccessToken method to use our new AuthService
 
   Future<void> _getAccessToken() async {
     try {
-      // Use the original getGoogleAccessToken for now to maintain compatibility
-      final token = await getGoogleAccessToken();
-      
-      if (token != null && mounted) {
+      print('DEBUG: Getting access token in HomeNavigation');
+
+      // First try to get token from account repository
+      final authService = AuthService();
+      final token = await authService.getDefaultAccessToken();
+
+      // If that fails, fall back to the original Google Sign-In method
+      final finalToken = token ?? await getGoogleAccessToken();
+
+      print(
+        'DEBUG: Got token: ${finalToken != null ? "valid token" : "null token"}',
+      );
+
+      if (finalToken != null && mounted) {
         setState(() {
-          _accessToken = token;
+          _accessToken = finalToken;
         });
-      } else {
-        // Handle null token case - maybe user needs to login
-        if (mounted) {
+        print('DEBUG: Set access token in HomeNavigation');
+      } else if (mounted) {
+        // Only navigate to login if we're at home screen (not if we just opened app)
+        // This prevents navigation loops
+        final currentRoute = ModalRoute.of(context)?.settings.name;
+        if (currentRoute != '/') {
           Navigator.pushReplacement(
-            context, 
-            MaterialPageRoute(builder: (context) => const AddEmailAccountsPage())
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddEmailAccountsPage(),
+            ),
           );
         }
       }
     } catch (e) {
-      print('Error getting access token: $e');
-      // Handle error appropriately
+      print('ERROR getting access token: $e');
     }
   }
 

@@ -8,6 +8,8 @@ import 'package:mail_merge/features/email/widgets/email_shimmer.dart';
 import 'package:mail_merge/features/vip_inbox/models/contact.dart';
 import 'package:mail_merge/features/vip_inbox/widgets/contact_folder_item.dart';
 import 'package:mail_merge/features/vip_inbox/widgets/contact_email_list.dart';
+import 'package:mail_merge/core/services/event_bus.dart';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
@@ -25,10 +27,10 @@ class _VipScreenState extends State<VipScreen>
   // Map to store emails grouped by contact
   // Key: contact email, Value: list of emails from that contact
   Map<String, List<Map<String, dynamic>>> _vipEmailsByContact = {};
-  
+
   // List of all VIP contacts
   List<Contact> _vipContacts = [];
-  
+
   // Loading and state flags
   bool _isLoading = true; // Used for initial loading
   bool _isRefreshing = false; // Used for pull-to-refresh
@@ -44,12 +46,28 @@ class _VipScreenState extends State<VipScreen>
   @override
   bool get wantKeepAlive => true;
 
+  StreamSubscription? _accountSubscription;
+
   @override
   void initState() {
     super.initState();
     _loadCachedVipEmails(); // First load from cache for instant display
     _loadVipEmails(); // Then fetch fresh data from the server
     _checkAuthAndClearDataIfNeeded(); // Verify authentication status
+
+    // Listen for account events
+    _accountSubscription = eventBus.on<AccountRemovedEvent>().listen((_) {
+      // Refresh VIP emails when an account is removed
+      if (mounted) {
+        _loadVipEmails(refresh: true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _accountSubscription?.cancel();
+    super.dispose();
   }
 
   /// Checks if user is authenticated and clears data if not
@@ -139,7 +157,7 @@ class _VipScreenState extends State<VipScreen>
   Future<void> _loadVipEmails({bool refresh = false}) async {
     // Store the current selected contact before refreshing
     final currentSelectedContact = _selectedContactEmail;
-    
+
     // Handle loading state
     if (refresh) {
       setState(() {
@@ -186,11 +204,13 @@ class _VipScreenState extends State<VipScreen>
           _vipEmailsByContact = emailsByContact;
           _isLoading = false;
           _isRefreshing = false;
-          
+
           // If the contact we were viewing no longer exists in the results,
           // then reset the selected contact
-          if (_selectedContactEmail != null && 
-              !emailsByContact.containsKey(_selectedContactEmail!.toLowerCase())) {
+          if (_selectedContactEmail != null &&
+              !emailsByContact.containsKey(
+                _selectedContactEmail!.toLowerCase(),
+              )) {
             _selectedContactEmail = null;
           }
         });
@@ -247,7 +267,8 @@ class _VipScreenState extends State<VipScreen>
         RefreshIndicator(
           onRefresh: () => _loadVipEmails(refresh: true),
           child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(), // Enable scrolling on empty list
+            physics:
+                const AlwaysScrollableScrollPhysics(), // Enable scrolling on empty list
             children: [
               SizedBox(height: MediaQuery.of(context).size.height / 4),
               // Star icon
