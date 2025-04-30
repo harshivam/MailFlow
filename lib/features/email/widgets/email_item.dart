@@ -22,6 +22,11 @@ class EmailItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Extract provider and account information if available
+    final String? provider = emailData?["provider"];
+    final String? accountName = emailData?["accountName"];
+    final bool hasProviderInfo = provider != null && accountName != null;
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6.0),
       elevation: 0.5,
@@ -51,7 +56,6 @@ class EmailItem extends StatelessWidget {
                     backgroundImage: NetworkImage(avatar),
                   ),
                   const SizedBox(width: 12),
-
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,6 +83,25 @@ class EmailItem extends StatelessWidget {
                             ),
                           ],
                         ),
+                        if (hasProviderInfo) ...[
+                          const SizedBox(height: 2),
+                          // Provider badge - shows account and service info
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _getProviderColor(provider!).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '$accountName ($provider)',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: _getProviderColor(provider),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Text(
                           subject,
@@ -108,5 +131,19 @@ class EmailItem extends StatelessWidget {
         ),
       ),
     );
+  }
+  
+  // Helper method to get colors based on email provider
+  Color _getProviderColor(String provider) {
+    switch (provider.toLowerCase()) {
+      case 'gmail':
+        return Colors.red;
+      case 'outlook':
+        return Colors.blue;
+      case 'rediffmail':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
   }
 }

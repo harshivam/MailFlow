@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/features/email/widgets/email_item.dart';
 import 'package:mail_merge/features/email/widgets/email_shimmer.dart';
-import 'package:mail_merge/features/email/services/email_service.dart';
+import 'package:mail_merge/features/email/services/unified_email_service.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,7 +23,7 @@ class EmailListScreenState extends State<EmailListScreen>
   bool _hasMore = true;
   String? _nextPageToken;
   final ScrollController _scrollController = ScrollController();
-  late EmailService _emailService;
+  late UnifiedEmailService _emailService;
 
   // Add cache flag
   bool _loadingFromCache = false;
@@ -52,13 +52,11 @@ class EmailListScreenState extends State<EmailListScreen>
   @override
   void initState() {
     super.initState();
-    _emailService = EmailService(widget.accessToken);
-    checkAuthAndClearIfNeeded(); // Add this line
+    _emailService = UnifiedEmailService();  // No need to pass access token anymore
+    checkAuthAndClearIfNeeded();
 
-    if (widget.accessToken.isNotEmpty) {
-      _loadCachedEmails(); // Load from cache first
-      fetchEmails(); // Then fetch fresh data
-    }
+    _loadCachedEmails(); // Load from cache first
+    fetchEmails(); // Then fetch fresh data
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -105,16 +103,7 @@ class EmailListScreenState extends State<EmailListScreen>
   @override
   void didUpdateWidget(EmailListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.accessToken != oldWidget.accessToken) {
-      _emailService = EmailService(widget.accessToken);
-
-      if (widget.accessToken.isNotEmpty) {
-        emailData.clear();
-        _nextPageToken = null;
-        _hasMore = true;
-        fetchEmails();
-      }
-    }
+    // Nothing to update - UnifiedEmailService handles access tokens internally
   }
 
   @override
@@ -124,28 +113,28 @@ class EmailListScreenState extends State<EmailListScreen>
   }
 
   Future<void> fetchEmails({bool refresh = false}) async {
-    if (widget.accessToken.isEmpty || (!_hasMore && !refresh)) return;
+    if (!_hasMore && !refresh) return;
 
-    if (_isLoading && !refresh)
-      return; // Prevent multiple simultaneous requests
+    if (_isLoading && !refresh) return; // Prevent multiple simultaneous requests
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final result = await _emailService.fetchEmails(
+      final emails = await _emailService.fetchUnifiedEmails(
         pageToken: refresh ? null : _nextPageToken,
       );
 
       setState(() {
         if (refresh) {
-          emailData = result.emails;
+          emailData = emails;
         } else {
-          emailData.addAll(result.emails);
+          emailData.addAll(emails);
         }
-        _nextPageToken = result.nextPageToken;
-        _hasMore = result.hasMore;
+        // For simplicity, we'll assume no pagination in the unified approach
+        _nextPageToken = null;
+        _hasMore = false; // For now, disable infinite scroll
         _isLoading = false;
       });
 

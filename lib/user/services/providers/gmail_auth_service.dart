@@ -21,6 +21,8 @@ class GmailAuthService implements EmailAuthService {
   @override
   Future<EmailAccount?> signIn(BuildContext context) async {
     try {
+      // Force account selection every time by signing out first
+      await _googleSignIn.signOut();
       final GoogleSignInAccount? account = await _googleSignIn.signIn();
 
       if (account == null) {

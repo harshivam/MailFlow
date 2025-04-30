@@ -57,18 +57,55 @@ class AddEmailAccountsScreen extends StatelessWidget {
               color: Colors.red,
               label: "Gmail",
               onTap: () async {
-                final account = await authService.signInWithProvider(
-                  AccountProvider.gmail,
-                  context,
-                );
-                
-                if (account != null && context.mounted) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const HomeNavigation(),
-                    ),
+                try {
+                  // Show loading indicator
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (BuildContext context) {
+                      return const Center(
+                        child: CircularProgressIndicator(),
+                      );
+                    },
                   );
+                  
+                  final account = await authService.signInWithProvider(
+                    AccountProvider.gmail,
+                    context,
+                  );
+                  
+                  // Close loading dialog
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                  
+                  if (account != null && context.mounted) {
+                    // Show success message before navigating
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Account added successfully')),
+                    );
+                    
+                    // Navigate to home screen
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HomeNavigation(),
+                      ),
+                    );
+                  } else if (context.mounted) {
+                    // Don't navigate if account wasn't added successfully
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Failed to add account')),
+                    );
+                  }
+                } catch (e) {
+                  // Close loading dialog if there's an error
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
                 }
               },
             ),

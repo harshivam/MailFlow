@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/features/vip_inbox/services/contact_service.dart';
-import 'package:mail_merge/features/email/services/email_service.dart';
+import 'package:mail_merge/features/email/services/unified_email_service.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/features/vip_inbox/screens/contacts_screen.dart';
 import 'package:mail_merge/features/vip_inbox/screens/add_contact_screen.dart';
@@ -144,24 +144,12 @@ class _VipScreenState extends State<VipScreen>
     if (refresh) {
       setState(() {
         _isRefreshing = true;
-        // Don't reset selected contact
       });
     } else if (!_isLoading) {
       setState(() => _isLoading = true);
     }
 
     try {
-      // Get access token - use the original method for now
-      _accessToken = await getGoogleAccessToken();
-      
-      if (_accessToken == null) {
-        setState(() {
-          _isLoading = false;
-          _isRefreshing = false;
-        });
-        return;
-      }
-      
       // Get VIP contacts
       final vipContacts = await ContactService.getVipContacts();
       _vipContacts = vipContacts;
@@ -172,9 +160,8 @@ class _VipScreenState extends State<VipScreen>
           _vipEmailsByContact = {};
           _isLoading = false;
           _isRefreshing = false;
-          // Reset selected contact only if its contact no longer exists
-          if (_selectedContactEmail != null && 
-              !vipContacts.any((c) => c.email.toLowerCase() == _selectedContactEmail!.toLowerCase())) {
+          // Reset selected contact if its contact no longer exists
+          if (_selectedContactEmail != null) {
             _selectedContactEmail = null;
           }
         });
@@ -182,30 +169,17 @@ class _VipScreenState extends State<VipScreen>
         return;
       }
 
-      // Initialize the email service
-      final emailService = EmailService(_accessToken!);
+      // Get email service
+      final emailService = UnifiedEmailService();
 
-      // Create a map to store emails by contact
-      Map<String, List<Map<String, dynamic>>> emailsByContact = {};
+      // Get all email addresses of VIP contacts
+      final vipEmailAddresses = vipContacts.map((c) => c.email).toList();
 
-      // Fetch emails for each VIP contact in parallel
-      // This improves performance by not waiting for each contact sequentially
-      final emailFutures = vipContacts.map((contact) async {
-        final query = 'from:${contact.email.toLowerCase()}';
-        final emails = await emailService.fetchEmailsWithQuery(
-          query,
-          maxResults: 10, // Limit per contact for better performance
-        );
-        return MapEntry(contact.email.toLowerCase(), emails);
-      });
-
-      // Wait for all email fetches to complete
-      final results = await Future.wait(emailFutures);
-
-      // Populate the map with results
-      for (var result in results) {
-        emailsByContact[result.key] = result.value;
-      }
+      // Fetch emails for all VIP contacts using the unified service
+      final emailsByContact = await emailService.fetchVipEmailsByContact(
+        vipEmailAddresses,
+        maxResults: 10, // Limit per contact for better performance
+      );
 
       if (mounted) {
         setState(() {

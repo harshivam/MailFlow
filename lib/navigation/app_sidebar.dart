@@ -4,6 +4,9 @@ import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/settings/settings_screen.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:mail_merge/features/vip_inbox/screens/contacts_screen.dart';
+import 'package:mail_merge/user/models/email_account.dart';
+import 'package:mail_merge/user/repository/account_repository.dart';
+import 'package:mail_merge/user/services/auth_service.dart';
 
 class AppSidebar extends StatelessWidget {
   final int currentIndex;
@@ -89,8 +92,8 @@ class AppSidebar extends StatelessWidget {
       },
       child: DrawerHeader(
         decoration: const BoxDecoration(color: Colors.blue),
-        child: FutureBuilder<GoogleSignInAccount?>(
-          future: getCurrentUser(),
+        child: FutureBuilder<List<EmailAccount>>(
+          future: AccountRepository().getAllAccounts(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -98,28 +101,11 @@ class AppSidebar extends StatelessWidget {
               );
             }
 
-            final user = snapshot.data;
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (user != null) ...[
-                  CircleAvatar(
-                    backgroundImage: NetworkImage(
-                      user.photoUrl ?? 'https://via.placeholder.com/150',
-                    ),
-                    radius: 30,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    user.displayName ?? 'User',
-                    style: const TextStyle(color: Colors.white, fontSize: 18),
-                  ),
-                  Text(
-                    user.email,
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                ] else ...[
+            final accounts = snapshot.data ?? [];
+            if (accounts.isEmpty) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   const Icon(
                     Icons.account_circle,
                     size: 60,
@@ -149,6 +135,114 @@ class AppSidebar extends StatelessWidget {
                     child: const Text('Sign in'),
                   ),
                 ],
+              );
+            }
+
+            // Find the default account
+            final defaultAccount = accounts.firstWhere(
+              (acc) => acc.isDefault,
+              orElse: () => accounts.first,
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Show current account
+                CircleAvatar(
+                  backgroundImage: defaultAccount.photoUrl != null
+                      ? NetworkImage(defaultAccount.photoUrl!)
+                      : null,
+                  backgroundColor: Colors.grey[300],
+                  foregroundColor: Colors.white,
+                  child: defaultAccount.photoUrl == null
+                      ? Text(
+                          defaultAccount.displayName.isNotEmpty
+                              ? defaultAccount.displayName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                  radius: 30,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  defaultAccount.displayName,
+                  style: const TextStyle(color: Colors.white, fontSize: 18),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        defaultAccount.email,
+                        style: const TextStyle(color: Colors.white70, fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (accounts.length > 1)
+                      PopupMenuButton<EmailAccount>(
+                        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                        onSelected: (selectedAccount) {
+                          // Set as default and refresh
+                          final authService = AuthService();
+                          authService.setDefaultAccount(selectedAccount.id).then((_) {
+                            // Close and reopen drawer to refresh
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Switched to ${selectedAccount.email}')),
+                            );
+                          });
+                        },
+                        itemBuilder: (context) => accounts
+                            .where((acc) => acc.id != defaultAccount.id)
+                            .map((account) => PopupMenuItem<EmailAccount>(
+                                  value: account,
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 15,
+                                        backgroundColor: Colors.grey[300],
+                                        backgroundImage: account.photoUrl != null
+                                            ? NetworkImage(account.photoUrl!)
+                                            : null,
+                                        child: account.photoUrl == null
+                                            ? Text(
+                                                account.displayName.isNotEmpty
+                                                    ? account.displayName[0].toUpperCase()
+                                                    : '?',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(account.displayName),
+                                            Text(
+                                              account.email,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[700],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                  ],
+                ),
               ],
             );
           },

@@ -191,6 +191,30 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                             ),
                         ],
                       ),
+                      if (widget.email["accountName"] != null && widget.email["provider"] != null) ...{
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${widget.email["accountName"]} (${widget.email["provider"]})',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue[800],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      },
                       Text(
                         senderEmail,
                         style: TextStyle(color: Colors.grey[600], fontSize: 14),

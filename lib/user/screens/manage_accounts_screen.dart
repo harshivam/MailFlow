@@ -197,35 +197,79 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
   }
 
   Future<void> _confirmDeleteAccount(EmailAccount account) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Remove Account'),
-        content: Text(
-          'Are you sure you want to remove ${account.displayName} (${account.email})?',
+    // Special handling for last account
+    if (_accounts.length == 1) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Remove Last Account'),
+          content: const Text(
+            'This is your last account. Removing it will sign you out completely. Continue?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('REMOVE & SIGN OUT', style: TextStyle(color: Colors.red)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('REMOVE', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (confirmed == true) {
-      try {
-        await _authService.removeAccount(account.id);
-        _loadAccounts();
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error removing account: $e')),
-          );
+      if (confirmed == true) {
+        try {
+          await _authService.removeAccount(account.id);
+          
+          // Sign out completely and navigate to add account screen
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const AddEmailAccountsScreen()),
+              (route) => false,
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error removing account: $e')),
+            );
+          }
+        }
+      }
+    } else {
+      // Regular confirmation for non-last accounts
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Remove Account'),
+          content: Text(
+            'Are you sure you want to remove ${account.displayName} (${account.email})?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('REMOVE', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        try {
+          await _authService.removeAccount(account.id);
+          _loadAccounts();
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error removing account: $e')),
+            );
+          }
         }
       }
     }

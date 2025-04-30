@@ -4,6 +4,7 @@ import 'package:mail_merge/user/repository/account_repository.dart';
 import 'package:mail_merge/user/services/providers/gmail_auth_service.dart';
 import 'package:mail_merge/user/services/providers/outlook_auth_service.dart';
 import 'package:mail_merge/user/services/providers/rediffmail_auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 abstract class EmailAuthService {
   Future<EmailAccount?> signIn(BuildContext context);
@@ -70,6 +71,10 @@ class AuthService {
   Future<void> removeAccount(String accountId) async {
     // Get the account details first
     final accounts = await _accountRepository.getAllAccounts();
+    
+    // Extra check: if there are no accounts, just return
+    if (accounts.isEmpty) return;
+    
     final accountToRemove = accounts.firstWhere(
       (acc) => acc.id == accountId,
       orElse: () => throw Exception('Account not found'),
@@ -81,6 +86,15 @@ class AuthService {
     
     // Remove from storage
     await _accountRepository.deleteAccount(accountId);
+    
+    // If this was the last account, clear all cache
+    if (accounts.length <= 1) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('cached_emails');
+      await prefs.remove('cached_vip_emails');
+      await prefs.remove('cached_vip_emails_by_contact');
+      await prefs.remove('cached_vip_contacts');
+    }
   }
   
   // Sign out from all accounts
