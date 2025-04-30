@@ -7,7 +7,7 @@ import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/features/email/screens/compose_email_screen.dart';
 import 'package:mail_merge/navigation/app_sidebar.dart';
-import 'package:mail_merge/user/services/auth_service.dart'; // Import the sidebar
+import 'package:mail_merge/user/services/auth_service.dart';
 
 class HomeNavigation extends StatefulWidget {
   const HomeNavigation({super.key});
@@ -21,6 +21,9 @@ class _HomeNavigationState extends State<HomeNavigation> {
   String _accessToken = ""; // Initialize with empty string
   final _emailListKey = GlobalKey<EmailListScreenState>();
 
+  // Use a scaffold key to access the drawer later
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   @override
   void initState() {
     super.initState();
@@ -30,7 +33,7 @@ class _HomeNavigationState extends State<HomeNavigation> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     // Try to sync the Google user to our account system
     // This helps ensure we have account data saved
     syncCurrentUserToAccountSystem().then((_) {
@@ -39,7 +42,6 @@ class _HomeNavigationState extends State<HomeNavigation> {
   }
 
   // Update the _getAccessToken method to use our new AuthService
-
   Future<void> _getAccessToken() async {
     try {
       print('DEBUG: Getting access token in HomeNavigation');
@@ -79,7 +81,6 @@ class _HomeNavigationState extends State<HomeNavigation> {
   }
 
   // Add a logout detection method:
-
   void _listenForAuthChanges() {
     Future.delayed(const Duration(seconds: 1), () async {
       final token = await getGoogleAccessToken();
@@ -114,23 +115,21 @@ class _HomeNavigationState extends State<HomeNavigation> {
     ];
 
     return Scaffold(
+      key: _scaffoldKey, // Need this to open drawer from swipe
       appBar: AppBar(
         title: const Text("Mail Merge", style: TextStyle(color: Colors.black)),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
-        // Add hamburger menu icon
-        leading: Builder(
-          builder:
-              (context) => IconButton(
-                icon: const Icon(Icons.menu, color: Colors.black),
-                onPressed: () {
-                  Scaffold.of(context).openDrawer();
-                },
-              ),
+        // Hamburger menu icon
+        leading: IconButton(
+          icon: const Icon(Icons.menu, color: Colors.black),
+          onPressed: () {
+            // Open the drawer when icon is tapped
+            _scaffoldKey.currentState?.openDrawer();
+          },
         ),
       ),
-      // Use the modular sidebar
       drawer: AppSidebar(
         currentIndex: _selectedIndex,
         onNavigate: (index) {
@@ -139,7 +138,19 @@ class _HomeNavigationState extends State<HomeNavigation> {
           });
         },
       ),
-      body: IndexedStack(index: _selectedIndex, children: screens),
+      // Add swipe to open drawer functionality
+      body: GestureDetector(
+        // Check if user swiped from left to right
+        onHorizontalDragEnd: (details) {
+          // If swipe is left to right (positive velocity)
+          if (details.primaryVelocity! > 0) {
+            // Open the drawer
+            _scaffoldKey.currentState?.openDrawer();
+          }
+        },
+        behavior: HitTestBehavior.translucent, // Don't block child widgets
+        child: IndexedStack(index: _selectedIndex, children: screens),
+      ),
       bottomNavigationBar: BottomNavigationBar(
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
