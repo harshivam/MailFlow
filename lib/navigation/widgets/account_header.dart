@@ -6,7 +6,17 @@ import 'package:mail_merge/settings/settings_screen.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 
 class AccountHeader extends StatelessWidget {
-  const AccountHeader({super.key});
+  // Callback for when account is changed
+  final Function(String)? onAccountChanged;
+
+  // Added parameter to track the currently selected account
+  final String? selectedAccountId;
+
+  const AccountHeader({
+    super.key,
+    this.onAccountChanged,
+    this.selectedAccountId, // New parameter
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -47,8 +57,32 @@ class AccountHeader extends StatelessWidget {
                 return _buildSignInUI(context);
               }
 
-              // Show account info if we have accounts
-              return _buildAccountUI(context, accounts);
+              // Find the account to display - either the selected account or the default
+              EmailAccount currentAccount;
+
+              if (selectedAccountId != null) {
+                // Try to find the selected account
+                try {
+                  currentAccount = accounts.firstWhere(
+                    (acc) => acc.id == selectedAccountId,
+                  );
+                } catch (e) {
+                  // Fall back to default or first account if selected not found
+                  currentAccount = accounts.firstWhere(
+                    (acc) => acc.isDefault,
+                    orElse: () => accounts.first,
+                  );
+                }
+              } else {
+                // No selected ID, use default or first account
+                currentAccount = accounts.firstWhere(
+                  (acc) => acc.isDefault,
+                  orElse: () => accounts.first,
+                );
+              }
+
+              // Show account info with the determined current account
+              return _buildAccountUI(context, accounts, currentAccount);
             },
           ),
         ),
@@ -90,13 +124,11 @@ class AccountHeader extends StatelessWidget {
   }
 
   // UI for when user has account(s)
-  Widget _buildAccountUI(BuildContext context, List<EmailAccount> accounts) {
-    // Get main account to display
-    final account = accounts.firstWhere(
-      (acc) => acc.isDefault,
-      orElse: () => accounts.first,
-    );
-
+  Widget _buildAccountUI(
+    BuildContext context,
+    List<EmailAccount> accounts,
+    EmailAccount currentAccount,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -104,15 +136,17 @@ class AccountHeader extends StatelessWidget {
         // Profile picture
         CircleAvatar(
           backgroundImage:
-              account.photoUrl != null ? NetworkImage(account.photoUrl!) : null,
+              currentAccount.photoUrl != null
+                  ? NetworkImage(currentAccount.photoUrl!)
+                  : null,
           backgroundColor: Colors.grey[300],
           foregroundColor: Colors.white,
           radius: 30,
           child:
-              account.photoUrl == null
+              currentAccount.photoUrl == null
                   ? Text(
-                    account.displayName.isNotEmpty
-                        ? account.displayName[0].toUpperCase()
+                    currentAccount.displayName.isNotEmpty
+                        ? currentAccount.displayName[0].toUpperCase()
                         : '?',
                     style: const TextStyle(
                       color: Colors.white,
@@ -125,7 +159,7 @@ class AccountHeader extends StatelessWidget {
 
         // Name
         Text(
-          account.displayName,
+          currentAccount.displayName,
           style: const TextStyle(color: Colors.white, fontSize: 18),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -134,8 +168,8 @@ class AccountHeader extends StatelessWidget {
 
         // Email - with dropdown if multiple accounts
         accounts.length > 1
-            ? _showAccountSelector(context, accounts, account)
-            : _showSingleAccount(context, account),
+            ? _showAccountSelector(context, accounts, currentAccount)
+            : _showSingleAccount(context, currentAccount),
       ],
     );
   }
@@ -190,6 +224,11 @@ class AccountHeader extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Switched to ${account.email}')),
           );
+
+          // Call the callback with the new account ID
+          if (onAccountChanged != null) {
+            onAccountChanged!(account.id);
+          }
         });
       },
       offset: const Offset(0, 36),

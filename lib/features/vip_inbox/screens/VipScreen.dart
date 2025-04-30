@@ -16,7 +16,10 @@ import 'dart:convert';
 /// A screen that displays emails from VIP contacts organized into folders
 /// Each folder represents a VIP contact and contains all emails from that contact
 class VipScreen extends StatefulWidget {
-  const VipScreen({super.key});
+  // Make accountId optional to support both unified and account-specific view
+  final String? accountId;
+
+  const VipScreen({super.key, this.accountId});
 
   @override
   State<VipScreen> createState() => _VipScreenState();
@@ -41,8 +44,9 @@ class _VipScreenState extends State<VipScreen>
   // When null, we show the folders view instead of emails
   String? _selectedContactEmail;
 
-  /// Keeps the state alive when switching between tabs
-  /// This prevents losing data and reloading when switching tabs
+  // Track the current account ID to detect changes
+  String? _currentAccountId;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -51,6 +55,9 @@ class _VipScreenState extends State<VipScreen>
   @override
   void initState() {
     super.initState();
+    // Store initial account ID
+    _currentAccountId = widget.accountId;
+
     _loadCachedVipEmails(); // First load from cache for instant display
     _loadVipEmails(); // Then fetch fresh data from the server
     _checkAuthAndClearDataIfNeeded(); // Verify authentication status
@@ -64,10 +71,19 @@ class _VipScreenState extends State<VipScreen>
     });
   }
 
+  // Add didUpdateWidget to detect account changes
   @override
-  void dispose() {
-    _accountSubscription?.cancel();
-    super.dispose();
+  void didUpdateWidget(VipScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If account ID changed, refresh emails
+    if (widget.accountId != _currentAccountId) {
+      print(
+        'DEBUG: VipScreen account ID changed from $_currentAccountId to ${widget.accountId}',
+      );
+      _currentAccountId = widget.accountId;
+      _loadVipEmails(refresh: true);
+    }
   }
 
   /// Checks if user is authenticated and clears data if not
@@ -114,6 +130,26 @@ class _VipScreenState extends State<VipScreen>
                   .map((item) => Map<String, dynamic>.from(item))
                   .toList();
         });
+
+        // Apply account filtering to cached data if needed
+        if (widget.accountId != null && widget.accountId!.isNotEmpty) {
+          // Filter each contact's emails to only include those from the selected account
+          final filteredEmailsByContact =
+              <String, List<Map<String, dynamic>>>{};
+
+          _vipEmailsByContact.forEach((contactEmail, emails) {
+            final filteredEmails =
+                emails
+                    .where((email) => email['accountId'] == widget.accountId)
+                    .toList();
+
+            if (filteredEmails.isNotEmpty) {
+              filteredEmailsByContact[contactEmail] = filteredEmails;
+            }
+          });
+
+          _vipEmailsByContact = filteredEmailsByContact;
+        }
       }
 
       setState(() {
@@ -178,7 +214,6 @@ class _VipScreenState extends State<VipScreen>
           _vipEmailsByContact = {};
           _isLoading = false;
           _isRefreshing = false;
-          // Reset selected contact if its contact no longer exists
           if (_selectedContactEmail != null) {
             _selectedContactEmail = null;
           }
@@ -194,27 +229,57 @@ class _VipScreenState extends State<VipScreen>
       final vipEmailAddresses = vipContacts.map((c) => c.email).toList();
 
       // Fetch emails for all VIP contacts using the unified service
-      final emailsByContact = await emailService.fetchVipEmailsByContact(
+      final allEmailsByContact = await emailService.fetchVipEmailsByContact(
         vipEmailAddresses,
         maxResults: 10, // Limit per contact for better performance
       );
 
+      // Apply account filtering if needed
+      Map<String, List<Map<String, dynamic>>> filteredEmailsByContact;
+
+      if (widget.accountId != null && widget.accountId!.isNotEmpty) {
+        // Filter each contact's emails to only include those from the selected account
+        filteredEmailsByContact = <String, List<Map<String, dynamic>>>{};
+
+        allEmailsByContact.forEach((contactEmail, emails) {
+          final filteredEmails =
+              emails
+                  .where((email) => email['accountId'] == widget.accountId)
+                  .toList();
+
+          if (filteredEmails.isNotEmpty) {
+            filteredEmailsByContact[contactEmail] = filteredEmails;
+          }
+        });
+      } else {
+        // No filtering needed, use all emails
+        filteredEmailsByContact = allEmailsByContact;
+      }
+
       if (mounted) {
         setState(() {
-          _vipEmailsByContact = emailsByContact;
+          _vipEmailsByContact = filteredEmailsByContact;
           _isLoading = false;
           _isRefreshing = false;
 
           // If the contact we were viewing no longer exists in the results,
           // then reset the selected contact
           if (_selectedContactEmail != null &&
-              !emailsByContact.containsKey(
+              !filteredEmailsByContact.containsKey(
                 _selectedContactEmail!.toLowerCase(),
               )) {
             _selectedContactEmail = null;
+          } else if (currentSelectedContact != null &&
+              filteredEmailsByContact.containsKey(
+                currentSelectedContact.toLowerCase(),
+              )) {
+            // Restore the previously selected contact if it still exists
+            _selectedContactEmail = currentSelectedContact;
           }
         });
-        _cacheVipEmails(); // Cache results
+
+        // Cache all results for future use
+        _cacheVipEmails();
       }
     } catch (e) {
       print('Error loading VIP emails: $e');
@@ -334,6 +399,11 @@ class _VipScreenState extends State<VipScreen>
               final contact = _vipContacts[index];
               final contactEmails =
                   _vipEmailsByContact[contact.email.toLowerCase()] ?? [];
+
+              // Skip contacts with no emails (after filtering)
+              if (contactEmails.isEmpty) {
+                return const SizedBox.shrink();
+              }
 
               // Use the modular ContactFolderItem widget for each folder
               return ContactFolderItem(

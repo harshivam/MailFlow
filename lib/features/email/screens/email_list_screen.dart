@@ -12,7 +12,14 @@ import 'dart:async';
 class EmailListScreen extends StatefulWidget {
   final String accessToken;
 
-  const EmailListScreen({super.key, required this.accessToken});
+  // Add accountId parameter for account-specific filtering
+  final String? accountId;
+
+  const EmailListScreen({
+    super.key,
+    required this.accessToken,
+    this.accountId, // Optional parameter
+  });
 
   @override
   State<EmailListScreen> createState() => EmailListScreenState();
@@ -26,17 +33,17 @@ class EmailListScreenState extends State<EmailListScreen>
   String? _nextPageToken;
   final ScrollController _scrollController = ScrollController();
   late UnifiedEmailService _emailService;
-
-  // Add cache flag
   bool _loadingFromCache = false;
-
-  // In the EmailListScreenState class, add:
   StreamSubscription? _accountSubscription;
+
+  // Track the current account ID to detect changes
+  String? _currentAccountId;
 
   @override
   bool get wantKeepAlive => true; // Keep state when switching tabs
 
   void checkAuthAndClearIfNeeded() async {
+    // Check if user is authenticated
     final user = await getCurrentUser();
 
     if (user == null && mounted) {
@@ -57,12 +64,20 @@ class EmailListScreenState extends State<EmailListScreen>
   @override
   void initState() {
     super.initState();
+    // Initialize email service
     _emailService = UnifiedEmailService();
     checkAuthAndClearIfNeeded();
 
+    // Store initial account ID
+    _currentAccountId = widget.accountId;
+
+    // Load from cache first for immediate display
     _loadCachedEmails();
+
+    // Then fetch fresh data from server
     fetchEmails();
 
+    // Set up infinite scrolling
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
               _scrollController.position.maxScrollExtent - 200 &&
@@ -72,13 +87,25 @@ class EmailListScreenState extends State<EmailListScreen>
       }
     });
 
-    // Listen for account events
+    // Listen for account removal events
     _accountSubscription = eventBus.on<AccountRemovedEvent>().listen((_) {
       // Refresh emails when an account is removed
       if (mounted) {
         fetchEmails(refresh: true);
       }
     });
+  }
+
+  // Check if account ID has changed and reload emails if needed
+  @override
+  void didUpdateWidget(EmailListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If account ID changed, refresh emails
+    if (widget.accountId != _currentAccountId) {
+      _currentAccountId = widget.accountId;
+      fetchEmails(refresh: true);
+    }
   }
 
   // Load emails from cache
@@ -90,10 +117,22 @@ class EmailListScreenState extends State<EmailListScreen>
 
       if (cachedData != null) {
         final List<dynamic> decodedData = jsonDecode(cachedData);
+
+        // Convert to list of Maps
+        final allEmails = List<Map<String, dynamic>>.from(
+          decodedData.map((item) => Map<String, dynamic>.from(item)),
+        );
+
+        // If account ID is specified, filter emails for that account
+        final filteredEmails =
+            widget.accountId != null && widget.accountId!.isNotEmpty
+                ? allEmails
+                    .where((email) => email['accountId'] == widget.accountId)
+                    .toList()
+                : allEmails;
+
         setState(() {
-          emailData = List<Map<String, dynamic>>.from(
-            decodedData.map((item) => Map<String, dynamic>.from(item)),
-          );
+          emailData = filteredEmails;
         });
       }
       _loadingFromCache = false;
@@ -107,16 +146,13 @@ class EmailListScreenState extends State<EmailListScreen>
   Future<void> _cacheEmails() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // We cache ALL emails, unfiltered
+      // This way we have the full dataset available when switching between accounts
       await prefs.setString('cached_emails', jsonEncode(emailData));
     } catch (e) {
       print('Error caching emails: $e');
     }
-  }
-
-  @override
-  void didUpdateWidget(EmailListScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Nothing to update - UnifiedEmailService handles access tokens internally
   }
 
   @override
@@ -126,34 +162,63 @@ class EmailListScreenState extends State<EmailListScreen>
     super.dispose();
   }
 
+  // Fetch emails with account filtering
   Future<void> fetchEmails({bool refresh = false}) async {
+    // Skip if we're already at the end and not refreshing
     if (!_hasMore && !refresh) return;
 
-    if (_isLoading && !refresh)
-      return; // Prevent multiple simultaneous requests
+    // Skip if already loading and not forcing refresh
+    if (_isLoading && !refresh) return;
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final emails = await _emailService.fetchUnifiedEmails(
+      // Fetch all emails or use pagination token
+      final allEmails = await _emailService.fetchUnifiedEmails(
         pageToken: refresh ? null : _nextPageToken,
       );
 
+      // Debug logging
+      print('DEBUG: Fetched ${allEmails.length} emails');
+      if (allEmails.isNotEmpty) {
+        print('DEBUG: First email account ID: ${allEmails.first['accountId']}');
+      }
+      print('DEBUG: Current selected account ID: ${widget.accountId}');
+
+      // Filter emails if account ID is specified
+      final filteredEmails =
+          widget.accountId != null && widget.accountId!.isNotEmpty
+              ? allEmails.where((email) {
+                // Get the account ID from the email
+                final emailAccountId = email['accountId']?.toString();
+                print(
+                  'DEBUG: Comparing email account: $emailAccountId with selected: ${widget.accountId}',
+                );
+                // Compare with the selected account ID
+                return emailAccountId == widget.accountId;
+              }).toList()
+              : allEmails;
+
+      print('DEBUG: After filtering, have ${filteredEmails.length} emails');
+
       setState(() {
         if (refresh) {
-          emailData = emails;
+          // Replace existing emails on refresh
+          emailData = filteredEmails;
         } else {
-          emailData.addAll(emails);
+          // Append new emails to existing list
+          emailData.addAll(filteredEmails);
         }
-        // For simplicity, we'll assume no pagination in the unified approach
+
+        // For now, we'll assume no pagination with the unified approach
         _nextPageToken = null;
-        _hasMore = false; // For now, disable infinite scroll
+        _hasMore = false; // Disable infinite scroll for simplicity
         _isLoading = false;
       });
 
-      // Cache the results for next time
+      // Cache the complete results (unfiltered) for future use
       _cacheEmails();
     } catch (e) {
       print('Error fetching emails: $e');
@@ -163,9 +228,10 @@ class EmailListScreenState extends State<EmailListScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Required by AutomaticKeepAliveClientMixin
     super.build(context);
 
-    // More robust check: verify both accessToken and authentication state
+    // If not authenticated, show sign-in prompt
     if (widget.accessToken.isEmpty) {
       // Clear cached data if user is not authenticated
       if (emailData.isNotEmpty) {
@@ -196,10 +262,12 @@ class EmailListScreenState extends State<EmailListScreen>
       );
     }
 
+    // Show shimmer loading effect when first loading with no cached data
     if (_isLoading && emailData.isEmpty && !_loadingFromCache) {
-      return const EmailShimmerList(); // Use default or automatically calculated item count
+      return const EmailShimmerList(); // Shows animated loading placeholders
     }
 
+    // Main email list with pull-to-refresh
     return RefreshIndicator(
       onRefresh: () => fetchEmails(refresh: true),
       child:
@@ -210,6 +278,7 @@ class EmailListScreenState extends State<EmailListScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: emailData.length + (_hasMore ? 1 : 0),
                 itemBuilder: (context, index) {
+                  // Show loading indicator at the bottom during pagination
                   if (index == emailData.length) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
@@ -222,6 +291,7 @@ class EmailListScreenState extends State<EmailListScreen>
                     return const SizedBox.shrink();
                   }
 
+                  // Display the email item
                   final email = emailData[index];
                   return EmailItem(
                     name: email["name"] ?? "Unknown",
@@ -238,10 +308,11 @@ class EmailListScreenState extends State<EmailListScreen>
     );
   }
 
+  // Empty state when no emails are found
   Widget _buildEmptyState() {
+    // Create a scrollable empty state to enable pull-to-refresh
     return ListView(
-      physics:
-          const AlwaysScrollableScrollPhysics(), // Ensure pull to refresh works with empty list
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
         SizedBox(height: MediaQuery.of(context).size.height / 4),
         const Icon(Icons.inbox_outlined, size: 80, color: Colors.grey),
