@@ -19,81 +19,35 @@ class AppSidebar extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // Extracted to a separate widget
+          // Account header
           const AccountHeader(),
 
-          // Main navigation item - only keeping Inbox
-          _buildNavigationItem(
-            context,
-            index: 0,
-            icon: Icons.inbox,
-            title: 'Inbox',
-          ),
+          // Inbox item
+          _makeInboxItem(context),
 
-          // Contacts option
-          _buildNavigationTile(
-            context: context,
-            icon: Icons.contacts,
-            title: 'Contacts',
-            onTap: () => _navigateTo(context, const ContactsScreen()),
-          ),
+          // Contacts item
+          _makeContactsItem(context),
 
           const Divider(),
 
-          // Settings and other options
-          _buildNavigationTile(
-            context: context,
-            icon: Icons.settings,
-            title: 'Settings',
-            onTap: () => _navigateTo(context, const SettingsScreen()),
-          ),
+          // Settings item
+          _makeSettingsItem(context),
 
-          // Help & Feedback
-          _buildNavigationTile(
-            context: context,
-            icon: Icons.help_outline,
-            title: 'Help & Feedback',
-            onTap: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Help & Feedback coming soon')),
-              );
-            },
-          ),
+          // Help item
+          _makeHelpItem(context),
         ],
       ),
     );
   }
 
-  // Navigate to screen and close drawer
-  void _navigateTo(BuildContext context, Widget screen) {
-    Navigator.pop(context);
-    Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
-  }
-
-  // Build a navigation tile with consistent styling
-  Widget _buildNavigationTile({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(leading: Icon(icon), title: Text(title), onTap: onTap);
-  }
-
-  // Build the main navigation items with selection state
-  Widget _buildNavigationItem(
-    BuildContext context, {
-    required int index,
-    required IconData icon,
-    required String title,
-  }) {
-    final isSelected = currentIndex == index;
+  // Inbox navigation item
+  Widget _makeInboxItem(BuildContext context) {
+    bool isSelected = currentIndex == 0;
 
     return ListTile(
-      leading: Icon(icon, color: isSelected ? Colors.blue : null),
+      leading: Icon(Icons.inbox, color: isSelected ? Colors.blue : null),
       title: Text(
-        title,
+        'Inbox',
         style: TextStyle(
           color: isSelected ? Colors.blue : null,
           fontWeight: isSelected ? FontWeight.bold : null,
@@ -101,8 +55,56 @@ class AppSidebar extends StatelessWidget {
       ),
       tileColor: isSelected ? Colors.blue.withOpacity(0.1) : null,
       onTap: () {
+        // Close drawer and navigate to inbox
         Navigator.pop(context);
-        onNavigate(index);
+        onNavigate(0);
+      },
+    );
+  }
+
+  // Contacts item
+  Widget _makeContactsItem(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.contacts),
+      title: const Text('Contacts'),
+      onTap: () {
+        // Close drawer and go to contacts
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ContactsScreen()),
+        );
+      },
+    );
+  }
+
+  // Settings item
+  Widget _makeSettingsItem(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.settings),
+      title: const Text('Settings'),
+      onTap: () {
+        // Close drawer and go to settings
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SettingsScreen()),
+        );
+      },
+    );
+  }
+
+  // Help and feedback item
+  Widget _makeHelpItem(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.help_outline),
+      title: const Text('Help & Feedback'),
+      onTap: () {
+        // Close drawer and show message
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Help & Feedback coming soon')),
+        );
       },
     );
   }

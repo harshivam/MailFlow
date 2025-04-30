@@ -15,7 +15,14 @@ class AccountHeader extends StatelessWidget {
     return Material(
       color: Colors.blue,
       child: InkWell(
-        onTap: () => _navigateToSettings(context),
+        onTap: () {
+          // Go to settings when tapping the header
+          Navigator.pop(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SettingsScreen()),
+          );
+        },
         child: Container(
           height: 220,
           padding: EdgeInsets.fromLTRB(
@@ -34,9 +41,14 @@ class AccountHeader extends StatelessWidget {
               }
 
               final accounts = snapshot.data ?? [];
-              return accounts.isEmpty
-                  ? _buildSignInPrompt(context)
-                  : _buildAccountInfo(context, accounts);
+
+              // Show sign in prompt if no accounts
+              if (accounts.isEmpty) {
+                return _buildSignInUI(context);
+              }
+
+              // Show account info if we have accounts
+              return _buildAccountUI(context, accounts);
             },
           ),
         ),
@@ -44,20 +56,10 @@ class AccountHeader extends StatelessWidget {
     );
   }
 
-  // Navigate to settings screen
-  void _navigateToSettings(BuildContext context) {
-    Navigator.pop(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SettingsScreen()),
-    );
-  }
-
-  // Build the sign-in prompt when no accounts are present
-  Widget _buildSignInPrompt(BuildContext context) {
+  // Simple UI for when user is not signed in
+  Widget _buildSignInUI(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
       children: [
         const Icon(Icons.account_circle, size: 60, color: Colors.white),
         const SizedBox(height: 8),
@@ -87,10 +89,10 @@ class AccountHeader extends StatelessWidget {
     );
   }
 
-  // Build the account information display
-  Widget _buildAccountInfo(BuildContext context, List<EmailAccount> accounts) {
-    // Find the default account
-    final defaultAccount = accounts.firstWhere(
+  // UI for when user has account(s)
+  Widget _buildAccountUI(BuildContext context, List<EmailAccount> accounts) {
+    // Get main account to display
+    final account = accounts.firstWhere(
       (acc) => acc.isDefault,
       orElse: () => accounts.first,
     );
@@ -99,83 +101,47 @@ class AccountHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Avatar
-        _buildAvatar(defaultAccount),
-
+        // Profile picture
+        CircleAvatar(
+          backgroundImage:
+              account.photoUrl != null ? NetworkImage(account.photoUrl!) : null,
+          backgroundColor: Colors.grey[300],
+          foregroundColor: Colors.white,
+          radius: 30,
+          child:
+              account.photoUrl == null
+                  ? Text(
+                    account.displayName.isNotEmpty
+                        ? account.displayName[0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                  : null,
+        ),
         const SizedBox(height: 10),
 
-        // Display name
+        // Name
         Text(
-          defaultAccount.displayName,
+          account.displayName,
           style: const TextStyle(color: Colors.white, fontSize: 18),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-
         const SizedBox(height: 4),
 
-        // Email with selector or settings
+        // Email - with dropdown if multiple accounts
         accounts.length > 1
-            ? _buildMultiAccountSelector(context, accounts, defaultAccount)
-            : _buildSingleAccountInfo(context, defaultAccount),
+            ? _showAccountSelector(context, accounts, account)
+            : _showSingleAccount(context, account),
       ],
     );
   }
 
-  // Build avatar with circular image or initial
-  Widget _buildAvatar(EmailAccount account) {
-    return CircleAvatar(
-      backgroundImage:
-          account.photoUrl != null ? NetworkImage(account.photoUrl!) : null,
-      backgroundColor: Colors.grey[300],
-      foregroundColor: Colors.white,
-      radius: 30,
-      child:
-          account.photoUrl == null
-              ? Text(
-                account.displayName.isNotEmpty
-                    ? account.displayName[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              )
-              : null,
-    );
-  }
-
-  // Build multi-account selector with dropdown
-  Widget _buildMultiAccountSelector(
-    BuildContext context,
-    List<EmailAccount> accounts,
-    EmailAccount defaultAccount,
-  ) {
-    return PopupMenuButton<EmailAccount>(
-      onSelected: (selectedAccount) => _switchAccount(context, selectedAccount),
-      itemBuilder:
-          (context) => _buildAccountMenuItems(accounts, defaultAccount),
-      offset: const Offset(0, 36),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                defaultAccount.email,
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const Icon(Icons.arrow_drop_down, color: Colors.white),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Build single account info with settings icon
-  Widget _buildSingleAccountInfo(BuildContext context, EmailAccount account) {
+  // For single account case
+  Widget _showSingleAccount(BuildContext context, EmailAccount account) {
     return Container(
       height: 36,
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -194,7 +160,15 @@ class AccountHeader extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               child: const Icon(Icons.settings, color: Colors.white, size: 20),
-              onTap: () => _navigateToSettings(context),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -202,19 +176,34 @@ class AccountHeader extends StatelessWidget {
     );
   }
 
-  // Build menu items for account selection
-  List<PopupMenuItem<EmailAccount>> _buildAccountMenuItems(
+  // For multiple accounts case
+  Widget _showAccountSelector(
+    BuildContext context,
     List<EmailAccount> accounts,
-    EmailAccount defaultAccount,
+    EmailAccount currentAccount,
   ) {
-    return accounts
-        .where((acc) => acc.id != defaultAccount.id)
-        .map(
-          (account) => PopupMenuItem<EmailAccount>(
+    return PopupMenuButton<EmailAccount>(
+      onSelected: (account) {
+        // Switch to selected account
+        AuthService().setDefaultAccount(account.id).then((_) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Switched to ${account.email}')),
+          );
+        });
+      },
+      offset: const Offset(0, 36),
+      itemBuilder: (context) {
+        // Create menu items for other accounts
+        return accounts.where((acc) => acc.id != currentAccount.id).map((
+          account,
+        ) {
+          return PopupMenuItem<EmailAccount>(
             value: account,
             height: 56,
             child: Row(
               children: [
+                // Account avatar
                 CircleAvatar(
                   radius: 15,
                   backgroundColor: Colors.grey[300],
@@ -236,6 +225,8 @@ class AccountHeader extends StatelessWidget {
                           : null,
                 ),
                 const SizedBox(width: 8),
+
+                // Account details
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,19 +248,24 @@ class AccountHeader extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        )
-        .toList();
-  }
-
-  // Switch to selected account
-  void _switchAccount(BuildContext context, EmailAccount selectedAccount) {
-    final authService = AuthService();
-    authService.setDefaultAccount(selectedAccount.id).then((_) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Switched to ${selectedAccount.email}')),
-      );
-    });
+          );
+        }).toList();
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                currentAccount.email,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Icon(Icons.arrow_drop_down, color: Colors.white),
+          ],
+        ),
+      ),
+    );
   }
 }
