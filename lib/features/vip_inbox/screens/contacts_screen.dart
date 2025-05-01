@@ -25,7 +25,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     try {
       final contacts = await ContactService.getContacts();
       contacts.sort((a, b) => a.name.compareTo(b.name)); // Sort alphabetically
-      
+
       setState(() {
         _contacts = contacts;
         _isLoading = false;
@@ -42,15 +42,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
       appBar: AppBar(
         title: const Text('Contacts'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadContacts,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadContacts),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _contacts.isEmpty
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _contacts.isEmpty
               ? _buildEmptyState()
               : _buildContactsList(),
       floatingActionButton: FloatingActionButton(
@@ -60,7 +58,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             context,
             MaterialPageRoute(builder: (context) => const AddContactScreen()),
           );
-          
+
           if (result == true) {
             _loadContacts();
           }
@@ -90,9 +88,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
             onPressed: () async {
               final result = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const AddContactScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const AddContactScreen(),
+                ),
               );
-              
+
               if (result == true) {
                 _loadContacts();
               }
@@ -107,42 +107,57 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Widget _buildContactsList() {
     return ListView.builder(
+      padding: const EdgeInsets.all(16),
       itemCount: _contacts.length,
       itemBuilder: (context, index) {
         final contact = _contacts[index];
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: contact.isVip ? Colors.amber : Colors.grey[300],
-            child: Text(
-              contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
-              style: TextStyle(
-                color: contact.isVip ? Colors.white : Colors.black,
-                fontWeight: FontWeight.bold,
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Card(
+            elevation: 0, // Remove shadow
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: Colors.grey[300]!,
+                width: 0.5,
+              ), // Add thin light grey outline
+            ),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor:
+                    contact.isVip ? Colors.amber : Colors.grey[300],
+                child: Text(
+                  contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    color: contact.isVip ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              title: Text(contact.name),
+              subtitle: Text(contact.email),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      contact.isVip ? Icons.star : Icons.star_border,
+                      color: contact.isVip ? Colors.amber : null,
+                    ),
+                    onPressed: () async {
+                      await ContactService.toggleVipStatus(contact.id);
+                      _loadContacts();
+                    },
+                    tooltip: contact.isVip ? 'Remove from VIP' : 'Add to VIP',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _showDeleteDialog(contact),
+                    tooltip: 'Delete contact',
+                  ),
+                ],
               ),
             ),
-          ),
-          title: Text(contact.name),
-          subtitle: Text(contact.email),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: Icon(
-                  contact.isVip ? Icons.star : Icons.star_border,
-                  color: contact.isVip ? Colors.amber : null,
-                ),
-                onPressed: () async {
-                  await ContactService.toggleVipStatus(contact.id);
-                  _loadContacts();
-                },
-                tooltip: contact.isVip ? 'Remove from VIP' : 'Add to VIP',
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                onPressed: () => _showDeleteDialog(contact),
-                tooltip: 'Delete contact',
-              ),
-            ],
           ),
         );
       },
@@ -152,22 +167,26 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Future<void> _showDeleteDialog(Contact contact) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Contact'),
-        content: Text('Are you sure you want to delete ${contact.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Contact'),
+            content: Text('Are you sure you want to delete ${contact.name}?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('CANCEL'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'DELETE',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('DELETE', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
     );
-    
+
     if (confirmed == true) {
       await ContactService.deleteContact(contact.id);
       _loadContacts();
