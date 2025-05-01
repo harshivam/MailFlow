@@ -64,6 +64,22 @@ class EmailService {
                 .cast<Map<String, dynamic>>()
                 .toList();
 
+        // Before returning the result, extract and add attachments to each email
+        for (var i = 0; i < emailData.length; i++) {
+          // Get the full message details if needed
+          final messageId = emailData[i]['id'];
+          final fullMessage = await _fetchFullMessage(messageId);
+
+          // Extract attachments using the helper method
+          List<Map<String, dynamic>> attachments = await _extractAttachments(
+            fullMessage,
+            emailData[i]['id'],
+          );
+
+          // Add attachments array to the email object
+          emailData[i]['attachments'] = attachments;
+        }
+
         return EmailResult(emailData, nextPageToken, nextPageToken != null);
       } else {
         print('Error fetching emails: ${response.statusCode}');
@@ -229,5 +245,56 @@ class EmailService {
       print('Error fetching emails with query: $e');
       return [];
     }
+  }
+
+  Future<Map<String, dynamic>> _fetchFullMessage(String messageId) async {
+    // Fetch full message with all data including payload/parts
+    final response = await http.get(
+      Uri.parse(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId',
+      ),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Accept': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(
+        'Failed to fetch message details: ${response.statusCode}',
+      );
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _extractAttachments(
+    Map<String, dynamic> message,
+    String emailId,
+  ) async {
+    List<Map<String, dynamic>> attachments = [];
+
+    // Check for message parts (where attachments live in Gmail API)
+    if (message['payload'] != null && message['payload']['parts'] != null) {
+      var parts = message['payload']['parts'] as List;
+      for (var part in parts) {
+        // Parts with filename and attachmentId are attachments
+        if (part['filename'] != null &&
+            part['filename'].toString().isNotEmpty &&
+            part['body'] != null &&
+            part['body']['attachmentId'] != null) {
+          attachments.add({
+            'id': part['body']['attachmentId'],
+            'filename': part['filename'],
+            'mimeType': part['mimeType'] ?? 'application/octet-stream',
+            'size': part['body']['size'] ?? 0,
+            'downloadUrl':
+                'https://gmail.googleapis.com/gmail/v1/users/me/messages/$emailId/attachments/${part['body']['attachmentId']}',
+          });
+        }
+      }
+    }
+
+    return attachments;
   }
 }

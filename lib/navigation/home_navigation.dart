@@ -244,16 +244,26 @@ class _HomeNavigationState extends State<HomeNavigation>
     // Bottom navigation screens
     final List<Widget> bottomNavScreens = [
       // Inbox screen (unified or account-specific based on toggle)
-      currentScreen,
+      _isUnifiedInboxEnabled
+          ? EmailListScreen(
+            key: GlobalKey<EmailListScreenState>(),
+            accessToken: _accessToken,
+          )
+          : EmailListScreen(
+            key: GlobalKey<EmailListScreenState>(),
+            accessToken: _accessToken,
+            accountId: _selectedAccountId,
+          ),
 
       // VIP screen - also respects the unified inbox toggle
       _isUnifiedInboxEnabled
-          ? const VipScreen() // Unified VIP view
-          : VipScreen(
-            accountId: _selectedAccountId ?? '',
-          ), // Account-specific view
-      // Attachments screen
-      const Attachmentsscreen(),
+          ? const VipScreen()
+          : VipScreen(accountId: _selectedAccountId ?? ''),
+
+      // Attachments screen - pass account ID when not in unified mode
+      _isUnifiedInboxEnabled
+          ? const Attachmentsscreen()
+          : Attachmentsscreen(accountId: _selectedAccountId ?? ''),
 
       // Unsubscribe screen
       const UnsubscribeScreen(),
