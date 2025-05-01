@@ -35,7 +35,6 @@ class EmailService {
     }
 
     try {
-      // Use a smaller batch size to load initial emails faster
       final response = await http.get(
         Uri.parse(
           'https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=$maxResults${pageToken != null ? '&pageToken=$pageToken' : ''}',
@@ -52,7 +51,7 @@ class EmailService {
           return EmailResult([], null, false);
         }
 
-        // Use parallel processing for fetching email details
+        // Process message details in parallel for faster loading
         final futures = messages.map(
           (message) => _fetchEmailDetails(message['id']),
         );
@@ -64,20 +63,11 @@ class EmailService {
                 .cast<Map<String, dynamic>>()
                 .toList();
 
-        // Before returning the result, extract and add attachments to each email
-        for (var i = 0; i < emailData.length; i++) {
-          // Get the full message details if needed
-          final messageId = emailData[i]['id'];
-          final fullMessage = await _fetchFullMessage(messageId);
-
-          // Extract attachments using the helper method
-          List<Map<String, dynamic>> attachments = await _extractAttachments(
-            fullMessage,
-            emailData[i]['id'],
-          );
-
-          // Add attachments array to the email object
-          emailData[i]['attachments'] = attachments;
+        // OPTIMIZATION: Don't fetch or extract attachments here
+        // Just initialize empty attachment arrays
+        for (var email in emailData) {
+          email['attachments'] = [];
+          email['hasAttachments'] = false;
         }
 
         return EmailResult(emailData, nextPageToken, nextPageToken != null);
@@ -248,23 +238,25 @@ class EmailService {
   }
 
   Future<Map<String, dynamic>> _fetchFullMessage(String messageId) async {
-    // Fetch full message with all data including payload/parts
-    final response = await http.get(
-      Uri.parse(
-        'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId',
-      ),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-        'Accept': 'application/json',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception(
-        'Failed to fetch message details: ${response.statusCode}',
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId',
+        ),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Accept': 'application/json',
+        },
       );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to fetch message: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching message details: $e');
+      throw e;
     }
   }
 
@@ -296,5 +288,56 @@ class EmailService {
     }
 
     return attachments;
+  }
+
+  /// Fetches attachments for a specific email only when they're needed
+  /// This allows the email list to load much faster
+  Future<List<Map<String, dynamic>>> fetchAttachmentsForEmail(
+    Map<String, dynamic> email,
+  ) async {
+    try {
+      if (email['attachments'] == null || email['attachments'].isEmpty) {
+        final messageId = email['id'];
+        if (messageId == null) return [];
+
+        // Fetch the full message with all parts
+        final fullMessage = await _fetchFullMessage(messageId);
+
+        // Extract attachments
+        List<Map<String, dynamic>> attachments = [];
+
+        // Check for message parts (where attachments live in Gmail API)
+        if (fullMessage['payload'] != null &&
+            fullMessage['payload']['parts'] != null) {
+          var parts = fullMessage['payload']['parts'] as List;
+          for (var part in parts) {
+            // Parts with filename and attachmentId are attachments
+            if (part['filename'] != null &&
+                part['filename'].toString().isNotEmpty &&
+                part['body'] != null &&
+                part['body']['attachmentId'] != null) {
+              attachments.add({
+                'id': part['body']['attachmentId'],
+                'filename': part['filename'],
+                'mimeType': part['mimeType'] ?? 'application/octet-stream',
+                'size': part['body']['size'] ?? 0,
+                'downloadUrl':
+                    'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId/attachments/${part['body']['attachmentId']}',
+              });
+            }
+          }
+        }
+
+        // Update the email object with attachments
+        email['attachments'] = attachments;
+        email['hasAttachments'] = attachments.isNotEmpty;
+
+        return attachments;
+      }
+      return email['attachments'] ?? [];
+    } catch (e) {
+      print('Error fetching attachments for email ${email['id']}: $e');
+      return [];
+    }
   }
 }

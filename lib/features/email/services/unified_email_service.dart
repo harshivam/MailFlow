@@ -261,16 +261,23 @@ class UnifiedEmailService {
     List<EmailAttachment> allAttachments = [];
 
     try {
-      // Get all emails first - we'll extract attachments from them
+      // Get all emails first
       final emails = await fetchUnifiedEmails(maxResults: 100);
 
+      // For each email, check if it has attachments
       for (var email in emails) {
-        // Check if email has attachments
-        if (email['attachments'] != null &&
-            email['attachments'] is List &&
-            email['attachments'].isNotEmpty) {
-          // Extract attachment data and create EmailAttachment objects
-          for (var attachment in email['attachments']) {
+        // We need to fetch the full message details to get attachment info
+        final service = await _getServiceForAccount(
+          await _accountRepository.getAccountById(email['accountId']),
+        );
+
+        // This is the key improvement - only fetch attachment details on demand
+        if (service is EmailService) {
+          // Get attachments for this email
+          final attachments = await service.fetchAttachmentsForEmail(email);
+
+          // Convert to EmailAttachment objects
+          for (var attachment in attachments) {
             allAttachments.add(
               EmailAttachment(
                 id: attachment['id'] ?? '',
@@ -283,10 +290,7 @@ class UnifiedEmailService {
                 emailSubject: email['message'] ?? '',
                 senderName: email['name'] ?? '',
                 senderEmail: email['from'] ?? '',
-                date:
-                    email['date'] != null
-                        ? DateTime.parse(email['date'])
-                        : DateTime.now(),
+                date: email['_dateTime'] ?? DateTime.now(),
                 accountId: email['accountId'] ?? '',
               ),
             );

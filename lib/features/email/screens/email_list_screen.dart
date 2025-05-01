@@ -181,42 +181,39 @@ class EmailListScreenState extends State<EmailListScreen>
     // Add a mounted check before first setState
     if (!mounted) return;
 
+    // Set loading state
     setState(() {
       _isLoading = true;
+
+      // Important: Don't clear emailData here unless refreshing
+      // This keeps the current emails visible while fetching new ones
+      if (refresh) {
+        // Only clear emails if we're explicitly refreshing
+        // This gives a better UX by showing the user their existing content
+        // while loading fresh data
+        emailData = [];
+      }
     });
 
     try {
-      // Fetch all emails or use pagination token
+      // Fetch emails from unified service
+      // Performance improvement: This no longer fetches attachments in the same call
       final allEmails = await _emailService.fetchUnifiedEmails(
         pageToken: refresh ? null : _nextPageToken,
       );
 
-      // Debug logging
-      print('DEBUG: Fetched ${allEmails.length} emails');
-      if (allEmails.isNotEmpty) {
-        print('DEBUG: First email account ID: ${allEmails.first['accountId']}');
-      }
-      print('DEBUG: Current selected account ID: ${widget.accountId}');
-
-      // Filter emails if account ID is specified
+      // Filter emails for this account if needed
       final filteredEmails =
           widget.accountId != null && widget.accountId!.isNotEmpty
-              ? allEmails.where((email) {
-                // Get the account ID from the email
-                final emailAccountId = email['accountId']?.toString();
-                print(
-                  'DEBUG: Comparing email account: $emailAccountId with selected: ${widget.accountId}',
-                );
-                // Compare with the selected account ID
-                return emailAccountId == widget.accountId;
-              }).toList()
+              ? allEmails
+                  .where((email) => email['accountId'] == widget.accountId)
+                  .toList()
               : allEmails;
 
-      print('DEBUG: After filtering, have ${filteredEmails.length} emails');
-
-      // Add another mounted check before the second setState
+      // Check if widget is still mounted
       if (!mounted) return;
 
+      // Update UI with new emails
       setState(() {
         if (refresh) {
           // Replace existing emails on refresh
@@ -226,19 +223,19 @@ class EmailListScreenState extends State<EmailListScreen>
           emailData.addAll(filteredEmails);
         }
 
-        // For now, we'll assume no pagination with the unified approach
         _nextPageToken = null;
-        _hasMore = false; // Disable infinite scroll for simplicity
+        _hasMore = false;
         _isLoading = false;
       });
 
-      // Cache the complete results (unfiltered) for future use
+      // Cache emails in the background
       _cacheEmails();
     } catch (e) {
       print('Error fetching emails: $e');
-      // Add another mounted check before the error setState
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

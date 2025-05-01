@@ -125,4 +125,13 @@ class AccountRepository {
       await saveAccounts(accounts);
     }
   }
+  
+    Future<EmailAccount> getAccountById(String id) async {
+    final accounts = await getAllAccounts();
+    final account = accounts.firstWhere(
+      (account) => account.id == id,
+      orElse: () => throw Exception('Account not found with ID: $id'),
+    );
+    return account;
+  }
 }
