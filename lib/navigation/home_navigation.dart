@@ -193,18 +193,30 @@ class _HomeNavigationState extends State<HomeNavigation>
 
   // New: Method to handle unified inbox toggle
   void _handleUnifiedInboxToggled(bool isEnabled) {
+    // Update state first
     setState(() {
       _isUnifiedInboxEnabled = isEnabled;
     });
+
     // Show feedback to user
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          isEnabled ? 'Showing emails from all accounts' : 'Showing emails from selected account only'
+          isEnabled
+              ? 'Showing emails from all accounts'
+              : 'Showing emails from selected account only',
         ),
         duration: const Duration(seconds: 2),
       ),
     );
+
+    // Add a delay before closing the drawer
+    Future.delayed(const Duration(milliseconds: 500), () {
+      // Close drawer after delay
+      if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+        Navigator.pop(context);
+      }
+    });
   }
 
   @override
@@ -237,8 +249,9 @@ class _HomeNavigationState extends State<HomeNavigation>
       // VIP screen - also respects the unified inbox toggle
       _isUnifiedInboxEnabled
           ? const VipScreen() // Unified VIP view
-          : VipScreen(accountId: _selectedAccountId ?? ''), // Account-specific view
-
+          : VipScreen(
+            accountId: _selectedAccountId ?? '',
+          ), // Account-specific view
       // Attachments screen
       const Attachmentsscreen(),
 
@@ -272,7 +285,8 @@ class _HomeNavigationState extends State<HomeNavigation>
         onAccountChanged: _handleAccountChanged,
         selectedAccountId: _selectedAccountId ?? '',
         isUnifiedInboxEnabled: _isUnifiedInboxEnabled, // Pass the toggle state
-        onUnifiedInboxToggled: _handleUnifiedInboxToggled, // Pass the toggle callback
+        onUnifiedInboxToggled:
+            _handleUnifiedInboxToggled, // Pass the toggle callback
       ),
       // Add swipe to open drawer functionality
       body: GestureDetector(

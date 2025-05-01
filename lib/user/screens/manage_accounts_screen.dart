@@ -116,6 +116,11 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
         final account = _accounts[index];
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          elevation: 0, // Remove shadow
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey[300]!, width: 0.5), // Add thin light grey outline
+          ),
           child: ListTile(
             leading: CircleAvatar(
               backgroundImage:

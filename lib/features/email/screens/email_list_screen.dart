@@ -275,7 +275,7 @@ class EmailListScreenState extends State<EmailListScreen>
               ? _buildEmptyState()
               : ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
                 itemCount: emailData.length + (_hasMore ? 1 : 0),
                 itemBuilder: (context, index) {
                   // Show loading indicator at the bottom during pagination

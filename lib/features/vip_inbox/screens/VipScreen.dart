@@ -393,7 +393,12 @@ class _VipScreenState extends State<VipScreen>
         RefreshIndicator(
           onRefresh: () => _loadVipEmails(refresh: true),
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(
+              16,
+              20,
+              16,
+              8,
+            ), // Add top padding here
             itemCount: _vipContacts.length,
             itemBuilder: (context, index) {
               final contact = _vipContacts[index];

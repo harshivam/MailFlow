@@ -86,14 +86,21 @@ class ContactEmailList extends StatelessWidget {
       itemCount: emails.length,
       itemBuilder: (context, index) {
         final email = emails[index];
-        return EmailItem(
-          name: email["name"] ?? "Unknown",
-          subject: email["message"] ?? "",
-          time: email["time"] ?? "",
-          snippet: email["snippet"] ?? "",
-          avatar: email["avatar"] ??
-              "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
-          emailData: email,
+        return Card(
+          elevation: 0, // Remove shadow
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey[300]!, width: 0.5), // Add thin light grey outline
+          ),
+          child: EmailItem(
+            name: email["name"] ?? "Unknown",
+            subject: email["message"] ?? "",
+            time: email["time"] ?? "",
+            snippet: email["snippet"] ?? "",
+            avatar: email["avatar"] ??
+                "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
+            emailData: email,
+          ),
         );
       },
     );

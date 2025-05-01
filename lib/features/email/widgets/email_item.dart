@@ -28,9 +28,12 @@ class EmailItem extends StatelessWidget {
     final bool hasProviderInfo = provider != null && accountName != null;
 
     return Card(
+      elevation: 0, // Remove shadow
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey[300]!, width: 0.5), // Add thin light grey outline
+      ),
       margin: const EdgeInsets.symmetric(vertical: 6.0),
-      elevation: 0.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
           if (emailData != null) {
