@@ -20,6 +20,10 @@ class HomeNavigation extends StatefulWidget {
 
 class _HomeNavigationState extends State<HomeNavigation>
     with WidgetsBindingObserver {
+  // Create persistent keys that don't change across rebuilds
+  final _unifiedInboxKey = GlobalKey<EmailListScreenState>();
+  final _accountSpecificInboxKey = GlobalKey<EmailListScreenState>();
+
   // Track the sidebar navigation selection
   int _sidebarIndex = 0;
 
@@ -31,15 +35,23 @@ class _HomeNavigationState extends State<HomeNavigation>
 
   String _accessToken = "";
   String? _selectedAccountId; // Track the selected account
-  final _emailListKey = GlobalKey<EmailListScreenState>();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isSyncingAccount = false;
+
+  // Add a flag for showing shimmer in inbox screen
+  bool _showInboxShimmer = false;
+
+  // Add new bottom nav screens list as a field
+  late List<Widget> _bottomNavScreens;
 
   @override
   void initState() {
     super.initState();
     _loadDefaultAccount();
     _listenForAuthChanges();
+
+    // Initialize bottom nav screens
+    _updateBottomNavScreens();
 
     // Register for app lifecycle events to detect resume
     WidgetsBinding.instance.addObserver(this);
@@ -99,10 +111,17 @@ class _HomeNavigationState extends State<HomeNavigation>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Just load the default account first
+    // Load the default account first
     _loadDefaultAccount().then((_) {
       // Then get the token
-      _getAccessToken();
+      _getAccessToken().then((_) {
+        // Important: Update screens AFTER token is loaded
+        if (_accessToken.isNotEmpty) {
+          setState(() {
+            _updateBottomNavScreens();
+          });
+        }
+      });
     });
   }
 
@@ -148,6 +167,8 @@ class _HomeNavigationState extends State<HomeNavigation>
         if (mounted) {
           setState(() {
             _accessToken = account.accessToken;
+            // Update screens with the new token
+            _updateBottomNavScreens();
           });
           print('DEBUG: Got token for account: ${account.email}');
         }
@@ -157,6 +178,8 @@ class _HomeNavigationState extends State<HomeNavigation>
         if (token != null && mounted) {
           setState(() {
             _accessToken = token;
+            // Update screens with the new token
+            _updateBottomNavScreens();
           });
         }
       }
@@ -193,9 +216,31 @@ class _HomeNavigationState extends State<HomeNavigation>
 
   // New: Method to handle unified inbox toggle
   void _handleUnifiedInboxToggled(bool isEnabled) {
-    // Update state first
     setState(() {
       _isUnifiedInboxEnabled = isEnabled;
+      _updateBottomNavScreens(forceShimmer: true);
+    });
+
+    // Schedule a refresh after shimmer appears
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_isUnifiedInboxEnabled && _unifiedInboxKey.currentState != null) {
+        _unifiedInboxKey.currentState!.fetchEmails(refresh: true).then((_) {
+          // IMPORTANT: Turn off shimmer when fetch completes
+          setState(() {
+            _updateBottomNavScreens(forceShimmer: false);
+          });
+        });
+      } else if (!_isUnifiedInboxEnabled &&
+          _accountSpecificInboxKey.currentState != null) {
+        _accountSpecificInboxKey.currentState!.fetchEmails(refresh: true).then((
+          _,
+        ) {
+          // IMPORTANT: Turn off shimmer when fetch completes
+          setState(() {
+            _updateBottomNavScreens(forceShimmer: false);
+          });
+        });
+      }
     });
 
     // Show feedback to user
@@ -219,48 +264,71 @@ class _HomeNavigationState extends State<HomeNavigation>
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Create screens based on unified inbox toggle
-    Widget currentScreen;
+  // Updated bottom navigation tap handler
+  void _onBottomNavTapped(int index) {
+    if (_bottomNavIndex != index) {
+      // Only show shimmer when going back to inbox
+      if (index == 0 && _bottomNavIndex != 0) {
+        setState(() {
+          _bottomNavIndex = index;
+          // Update with shimmer
+          _updateBottomNavScreens(forceShimmer: true);
+        });
 
-    // Get the main screen based on unified inbox toggle
-    if (_isUnifiedInboxEnabled) {
-      // Unified Inbox - shows all emails (no accountId)
-      currentScreen = EmailListScreen(
-        key: GlobalKey<EmailListScreenState>(),
-        accessToken: _accessToken,
-        // Don't pass accountId for unified inbox
-      );
-    } else {
-      // Account-specific Inbox - filter by selected account
-      currentScreen = EmailListScreen(
-        key: GlobalKey<EmailListScreenState>(),
-        accessToken: _accessToken,
-        accountId: _selectedAccountId, // Pass selected account ID for filtering
-      );
+        // Schedule a refresh after shimmer appears
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (_isUnifiedInboxEnabled && _unifiedInboxKey.currentState != null) {
+            // Begin email fetch with feedback when complete
+            _unifiedInboxKey.currentState!.fetchEmails(refresh: true).then((_) {
+              // IMPORTANT: Turn off shimmer when fetch completes
+              setState(() {
+                _updateBottomNavScreens(forceShimmer: false);
+              });
+            });
+          } else if (!_isUnifiedInboxEnabled &&
+              _accountSpecificInboxKey.currentState != null) {
+            // Begin email fetch with feedback when complete
+            _accountSpecificInboxKey.currentState!
+                .fetchEmails(refresh: true)
+                .then((_) {
+                  // IMPORTANT: Turn off shimmer when fetch completes
+                  setState(() {
+                    _updateBottomNavScreens(forceShimmer: false);
+                  });
+                });
+          }
+        });
+      } else {
+        setState(() {
+          _bottomNavIndex = index;
+        });
+      }
     }
+  }
 
-    // Bottom navigation screens
-    final List<Widget> bottomNavScreens = [
-      // Inbox screen (unified or account-specific based on toggle)
+  // Update bottom nav screens method
+  void _updateBottomNavScreens({bool forceShimmer = false}) {
+    _bottomNavScreens = [
+      // Inbox screen
       _isUnifiedInboxEnabled
           ? EmailListScreen(
-            key: GlobalKey<EmailListScreenState>(),
+            key: _unifiedInboxKey,
             accessToken: _accessToken,
+            forceLoading: forceShimmer,
           )
           : EmailListScreen(
-            key: GlobalKey<EmailListScreenState>(),
+            key: _accountSpecificInboxKey,
             accessToken: _accessToken,
             accountId: _selectedAccountId,
+            forceLoading: forceShimmer,
           ),
 
-      // VIP screen - also respects the unified inbox toggle
+      // VIP screen
       _isUnifiedInboxEnabled
           ? const VipScreen()
           : VipScreen(accountId: _selectedAccountId ?? ''),
 
-      // Attachments screen - pass account ID when not in unified mode
+      // Attachments screen
       _isUnifiedInboxEnabled
           ? const Attachmentsscreen()
           : Attachmentsscreen(accountId: _selectedAccountId ?? ''),
@@ -268,7 +336,11 @@ class _HomeNavigationState extends State<HomeNavigation>
       // Unsubscribe screen
       const UnsubscribeScreen(),
     ];
+  }
 
+  @override
+  Widget build(BuildContext context) {
+    // Your existing build method, but replace the screen usage:
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
@@ -307,7 +379,7 @@ class _HomeNavigationState extends State<HomeNavigation>
         },
         behavior: HitTestBehavior.translucent,
         // Show screen based on bottom navigation selection
-        child: bottomNavScreens[_bottomNavIndex],
+        child: _bottomNavScreens[_bottomNavIndex], // Use the list we maintain
       ),
       bottomNavigationBar: BottomNavigationBar(
         selectedItemColor: Colors.blue,
@@ -347,12 +419,5 @@ class _HomeNavigationState extends State<HomeNavigation>
               )
               : null,
     );
-  }
-
-  // Handle bottom navigation bar taps
-  void _onBottomNavTapped(int index) {
-    setState(() {
-      _bottomNavIndex = index;
-    });
   }
 }

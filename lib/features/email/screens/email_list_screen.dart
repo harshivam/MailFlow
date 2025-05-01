@@ -11,14 +11,14 @@ import 'dart:async';
 
 class EmailListScreen extends StatefulWidget {
   final String accessToken;
-
-  // Add accountId parameter for account-specific filtering
   final String? accountId;
+  final bool forceLoading; // Add this parameter
 
   const EmailListScreen({
     super.key,
     required this.accessToken,
-    this.accountId, // Optional parameter
+    this.accountId,
+    this.forceLoading = false, // Default to false
   });
 
   @override
@@ -147,9 +147,17 @@ class EmailListScreenState extends State<EmailListScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // We cache ALL emails, unfiltered
-      // This way we have the full dataset available when switching between accounts
-      await prefs.setString('cached_emails', jsonEncode(emailData));
+      // Create a JSON-safe copy of the email data by removing non-serializable fields
+      final jsonSafeEmails =
+          emailData.map((email) {
+            final emailCopy = Map<String, dynamic>.from(email);
+            // Remove the DateTime object that can't be serialized
+            emailCopy.remove('_dateTime');
+            return emailCopy;
+          }).toList();
+
+      // Cache the JSON-safe version
+      await prefs.setString('cached_emails', jsonEncode(jsonSafeEmails));
     } catch (e) {
       print('Error caching emails: $e');
     }
@@ -169,6 +177,9 @@ class EmailListScreenState extends State<EmailListScreen>
 
     // Skip if already loading and not forcing refresh
     if (_isLoading && !refresh) return;
+
+    // Add a mounted check before first setState
+    if (!mounted) return;
 
     setState(() {
       _isLoading = true;
@@ -203,6 +214,9 @@ class EmailListScreenState extends State<EmailListScreen>
 
       print('DEBUG: After filtering, have ${filteredEmails.length} emails');
 
+      // Add another mounted check before the second setState
+      if (!mounted) return;
+
       setState(() {
         if (refresh) {
           // Replace existing emails on refresh
@@ -222,14 +236,33 @@ class EmailListScreenState extends State<EmailListScreen>
       _cacheEmails();
     } catch (e) {
       print('Error fetching emails: $e');
+      // Add another mounted check before the error setState
+      if (!mounted) return;
       setState(() => _isLoading = false);
+    }
+  }
+
+  void setShimmerState(bool isLoading) {
+    if (mounted) {
+      setState(() {
+        _isLoading = isLoading;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Required by AutomaticKeepAliveClientMixin
     super.build(context);
+
+    // Always show shimmer when forceLoading is true
+    if (widget.forceLoading) {
+      return const EmailShimmerList();
+    }
+
+    // Rest of your existing build code...
+    if (_isLoading && emailData.isEmpty && !_loadingFromCache) {
+      return const EmailShimmerList();
+    }
 
     // If not authenticated, show sign-in prompt
     if (widget.accessToken.isEmpty) {
