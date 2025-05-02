@@ -132,7 +132,7 @@ class EmailService {
 
         String subject = 'No Subject';
         String sender = 'Unknown';
-        String from = ''; // Add this line
+        String from = '';
         String time = '';
         String avatar =
             'https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png';
@@ -141,8 +141,22 @@ class EmailService {
           if (header['name'] == 'Subject') {
             subject = header['value'];
           } else if (header['name'] == 'From') {
-            sender = header['value'];
-            from = header['value']; // Add this line
+            final fullFrom = header['value'];
+            sender = fullFrom;
+
+            // Extract email address from "Name <email@example.com>" format
+            final emailRegex = RegExp(r'<([^>]+)>');
+            final match = emailRegex.firstMatch(fullFrom);
+
+            if (match != null && match.groupCount >= 1) {
+              // Extract just the email address part
+              from = match.group(1)!;
+            } else {
+              // If no angle brackets, use the whole string (might be just an email)
+              from = fullFrom;
+            }
+
+            // Clean up the display name
             if (sender.contains('<')) {
               sender = sender.split('<')[0].trim();
               if (sender.startsWith('"') && sender.endsWith('"')) {
@@ -166,7 +180,7 @@ class EmailService {
             final profileData = json.decode(profileResponse.body);
             final photos = profileData['photos'] as List?;
             if (photos != null && photos.isNotEmpty) {
-              avatar = photos.first['url'];
+              avatar = photos.first['url']; // Now avatar is properly defined
             }
           }
         } catch (e) {

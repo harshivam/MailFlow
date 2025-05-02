@@ -52,9 +52,9 @@ dependencies:
   flutter_pdfview: ^1.2.0  # For displaying PDF files
   # Remove or comment out permission_handler
   # permission_handler: 9.0.2
-  
   # Add these packages instead
   path: ^1.8.3
+  marquee: ^2.2.3
   
 
 dev_dependencies:

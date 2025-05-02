@@ -3,11 +3,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mail_merge/features/attachments_hub/models/attachment.dart';
 import 'package:mail_merge/features/email/screens/email_detail_screen.dart';
+import 'package:mail_merge/user/services/auth_service.dart';
 import 'package:mail_merge/utils/date_formatter.dart';
 import 'package:mail_merge/user/repository/account_repository.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
+import 'package:marquee/marquee.dart';
 
 class AttachmentItem extends StatelessWidget {
   final EmailAttachment attachment;
@@ -144,11 +146,36 @@ class AttachmentItem extends StatelessWidget {
               const SizedBox(height: 6),
 
               // From email text
-              Text(
-                'From: ${attachment.senderName}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.grey[700], fontSize: 12),
+              Container(
+                height: 17, // Give it a fixed height for the marquee
+                child:
+                    attachment.senderEmail.length > 15
+                        ? Marquee(
+                          text: 'From: ${attachment.senderEmail}',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 12,
+                          ),
+                          scrollAxis: Axis.horizontal,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          blankSpace: 20.0,
+                          velocity: 30.0, // Speed of the marquee
+                          pauseAfterRound: Duration(seconds: 1),
+                          startPadding: 10.0,
+                          accelerationDuration: Duration(seconds: 1),
+                          accelerationCurve: Curves.linear,
+                          decelerationDuration: Duration(milliseconds: 500),
+                          decelerationCurve: Curves.easeOut,
+                        )
+                        : Text(
+                          'From: ${attachment.senderEmail}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 12,
+                          ),
+                        ),
               ),
             ],
           ),
@@ -187,10 +214,22 @@ class AttachmentItem extends StatelessWidget {
                       MaterialPageRoute(
                         builder:
                             (context) => EmailDetailScreen(
+                              // EmailDetailScreen expects a Map<String, dynamic> 'email' parameter
                               email: {
                                 'id': attachment.emailId,
-                                'accountId': attachment.accountId,
+                                'name': attachment.senderName,
+                                'from': attachment.senderEmail,
                                 'message': attachment.emailSubject,
+                                'time': attachment.date.toIso8601String(),
+                                'accountId':
+                                    attachment
+                                        .accountId, // Include accountId in the map
+                                'accountName':
+                                    'Email Account', // Fallback value since we don't have this
+                                'provider':
+                                    'Gmail', // Fallback value since we don't have this
+                                'snippet':
+                                    'original email containing this attachment', // Default snippet
                               },
                             ),
                       ),
@@ -247,20 +286,15 @@ class AttachmentItem extends StatelessWidget {
         // Only show loading during download, not when opening
         snackbarController = messenger.showSnackBar(loadingSnackbar);
 
-        // Get access token for this account
-        final AccountRepository accountRepo = AccountRepository();
-        final accounts = await accountRepo.getAllAccounts();
-        final account = accounts.firstWhere(
-          (acc) => acc.id == attachment.accountId,
-          orElse: () => throw Exception('Account not found'),
-        );
+        // Get a fresh token for this account
+        final accessToken = await _getValidToken(attachment.accountId);
 
         print('Downloading file from: ${attachment.downloadUrl}');
 
         // Download the file with authorization
         final response = await http.get(
           Uri.parse(attachment.downloadUrl),
-          headers: {'Authorization': 'Bearer ${account.accessToken}'},
+          headers: {'Authorization': 'Bearer $accessToken'},
         );
 
         if (response.statusCode != 200) {
@@ -350,18 +384,13 @@ class AttachmentItem extends StatelessWidget {
         throw Exception('Could not access storage directory');
       }
 
-      // Get access token for this account
-      final AccountRepository accountRepo = AccountRepository();
-      final accounts = await accountRepo.getAllAccounts();
-      final account = accounts.firstWhere(
-        (acc) => acc.id == attachment.accountId,
-        orElse: () => throw Exception('Account not found'),
-      );
+      // Get a fresh token for this account
+      final accessToken = await _getValidToken(attachment.accountId);
 
       // Download the file with authorization
       final response = await http.get(
         Uri.parse(attachment.downloadUrl),
-        headers: {'Authorization': 'Bearer ${account.accessToken}'},
+        headers: {'Authorization': 'Bearer $accessToken'},
       );
 
       if (response.statusCode == 200) {
@@ -588,6 +617,36 @@ class AttachmentItem extends StatelessWidget {
       print(
         '$filename has unknown image format signature: ${bytes.sublist(0, 4)}',
       );
+    }
+  }
+
+  // Add this helper method inside the AttachmentItem class, before the end of the class
+  Future<String> _getValidToken(String accountId) async {
+    try {
+      final AccountRepository accountRepo = AccountRepository();
+      final accounts = await accountRepo.getAllAccounts();
+      final account = accounts.firstWhere(
+        (acc) => acc.id == accountId,
+        orElse: () => throw Exception('Account not found'),
+      );
+
+      // Check if token will expire soon (in next 5 minutes)
+      if (DateTime.now()
+          .add(const Duration(minutes: 5))
+          .isAfter(account.tokenExpiry)) {
+        // Token expiring soon, refresh it
+        print('Token expiring soon, refreshing before download');
+        final authService = AuthService();
+        final freshToken = await authService.getAccessToken(accountId);
+        if (freshToken != null) {
+          return freshToken;
+        }
+      }
+
+      return account.accessToken;
+    } catch (e) {
+      print('Error getting valid token: $e');
+      throw Exception('Authentication error: $e');
     }
   }
 }

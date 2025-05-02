@@ -12,161 +12,219 @@ class AttachmentService {
   factory AttachmentService() => _instance;
   AttachmentService._internal();
 
-  // Update fetchAllAttachments to handle pagination
+  // Track last API request time
+  static DateTime _lastApiRequest = DateTime.now().subtract(
+    Duration(minutes: 1),
+  );
+  static const _minRequestInterval = Duration(milliseconds: 500);
+
+  // Throttle API requests to prevent rate limiting
+  Future<void> _throttleApiRequests() async {
+    final now = DateTime.now();
+    final timeSinceLastRequest = now.difference(_lastApiRequest);
+
+    if (timeSinceLastRequest < _minRequestInterval) {
+      // Wait the remaining time before making another request
+      final waitTime = _minRequestInterval - timeSinceLastRequest;
+      await Future.delayed(waitTime);
+    }
+
+    // Update last request time
+    _lastApiRequest = DateTime.now();
+  }
+
+  // Update the fetchAllAttachments method to better use cache
   Future<List<EmailAttachment>> fetchAllAttachments({
-    int pageSize = 10, // Updated to load 10 at once
-    int page = 0, // Page number for pagination
+    int pageSize = 6,
+    int page = 0,
     Function(double)? onProgress,
     String? accountId,
     String? fileType,
     required bool refresh,
   }) async {
     try {
-      // Report initial progress
+      // FAST PATH: Always show cached data immediately
       onProgress?.call(0.1);
-      print(
-        'AttachmentService: Starting fetchAllAttachments, page=$page, refresh=$refresh',
-      );
-
-      // First check cache for quick loading (always use cache for fast initial load)
       final cachedAttachments = await _loadCachedAttachments();
-      print(
-        'AttachmentService: Found ${cachedAttachments.length} cached attachments',
-      );
-
-      // Apply filters first
+      
+      // Apply filters to cached data
       final filteredCachedAttachments = _filterAttachments(
         cachedAttachments,
         accountId: accountId,
         fileType: fileType,
       );
-
-      // For initial load (page 0) use cached data to show something quickly
-      if (page == 0) {
-        // Report completion
-        onProgress?.call(1.0);
-
-        // Start a background refresh if needed and it's the first page
-        if (refresh || cachedAttachments.isEmpty) {
-          _refreshAttachmentsInBackground();
-        }
-
-        // Return paginated results (first 10 items)
-        final startIndex = 0;
-        final endIndex =
-            filteredCachedAttachments.length > pageSize
-                ? pageSize
-                : filteredCachedAttachments.length;
-
-        return filteredCachedAttachments.sublist(startIndex, endIndex);
-      }
-
-      // For subsequent pages (page > 0), return paginated cached results
-      if (cachedAttachments.isNotEmpty) {
-        final startIndex = page * pageSize;
-
-        // If we're asking for a page beyond what we have in cache, start a refresh
-        if (startIndex >= filteredCachedAttachments.length) {
-          // We need to fetch more data
-          if (!refresh) {
-            _refreshAttachmentsInBackground();
-          }
-          // Return empty list if we're beyond available data
-          return [];
-        }
-
-        final endIndex =
-            (startIndex + pageSize) > filteredCachedAttachments.length
-                ? filteredCachedAttachments.length
-                : (startIndex + pageSize);
-
-        return filteredCachedAttachments.sublist(startIndex, endIndex);
-      }
-
-      // If we have no cached data, we need to fetch from API
+      
       onProgress?.call(0.3);
-      print('AttachmentService: Fetching fresh data from email service');
-
-      final emailService = UnifiedEmailService();
-      List<EmailAttachment> attachments = [];
-
-      try {
-        attachments = await emailService.fetchAllAttachments();
-        print('AttachmentService: Got ${attachments.length} fresh attachments');
-
-        // Save the timestamp of this refresh
+      
+      // Immediately return cached data for first render
+      if (cachedAttachments.isNotEmpty && !refresh) {
+        // Also trigger background refresh if cache is stale
+        if (await _isCacheStale()) {
+          _refreshAttachmentsInBackground(accountId: accountId);
+        }
+        
+        onProgress?.call(1.0);
+        return _getPaginatedResults(filteredCachedAttachments, page, pageSize);
+      }
+      
+      // If refresh requested or no cache, use API but with optimization
+      if (refresh || cachedAttachments.isEmpty) {
+        onProgress?.call(0.4);
+        
+        final emailService = UnifiedEmailService();
+        
+        // OPTIMIZATION: Use smaller limits for faster loading
+        // When refresh=true, use limited query for speed
+        final attachments = await emailService.fetchAllAttachments(
+          accountId: accountId,
+          maxEmails: refresh ? 5 : 10, // Use smaller batch for manual refresh
+          maxAttachments: refresh ? 15 : 30, // Fewer attachments for faster response
+        );
+        
+        onProgress?.call(0.7);
+        
+        // Merge with cache to maintain a complete dataset
+        List<EmailAttachment> mergedAttachments;
+        if (cachedAttachments.isNotEmpty) {
+          mergedAttachments = _efficientMergeAttachments(cachedAttachments, attachments);
+        } else {
+          mergedAttachments = attachments;
+        }
+        
+        onProgress?.call(0.8);
+        
+        // Save to cache
+        await _cacheAttachments(mergedAttachments);
+        
+        // Update timestamp
         final prefs = await SharedPreferences.getInstance();
         await prefs.setInt(
           'last_attachment_refresh',
           DateTime.now().millisecondsSinceEpoch,
         );
-
-        // Cache the results if we got any
-        if (attachments.isNotEmpty) {
-          await _cacheAttachments(attachments);
-          print('AttachmentService: Cached the attachments successfully');
+        
+        // If this was a limited refresh, trigger a full background refresh
+        if (refresh && mergedAttachments.isNotEmpty) {
+          _completeRefreshInBackground(accountId);
         }
-
-        onProgress?.call(1.0);
-
-        final filtered = _filterAttachments(
-          attachments,
+        
+        // Apply filters and return
+        final filteredAttachments = _filterAttachments(
+          mergedAttachments,
           accountId: accountId,
           fileType: fileType,
         );
-
-        // Return only the requested page of results
-        final startIndex = page * pageSize;
-        final endIndex =
-            (startIndex + pageSize) > filtered.length
-                ? filtered.length
-                : (startIndex + pageSize);
-
-        return filtered.sublist(startIndex, endIndex);
-      } catch (e) {
-        print('AttachmentService: Error fetching fresh attachments: $e');
-
-        // If there's a 429 rate limit error, propagate it
-        if (e.toString().contains('429')) {
-          onProgress?.call(1.0);
-          throw Exception('Rate limited: $e');
-        }
-
-        // Fall back to cached data if available
-        if (cachedAttachments.isNotEmpty) {
-          print('AttachmentService: Falling back to cached data');
-          onProgress?.call(1.0);
-
-          final filtered = _filterAttachments(
-            cachedAttachments,
-            accountId: accountId,
-            fileType: fileType,
-          );
-
-          // Return only the requested page of results
-          final startIndex = page * pageSize;
-          final endIndex =
-              (startIndex + pageSize) > filtered.length
-                  ? filtered.length
-                  : (startIndex + pageSize);
-
-          return filtered.sublist(startIndex, endIndex);
-        }
-
-        // If no cache and error, just return empty list
+        
         onProgress?.call(1.0);
-        return [];
+        return _getPaginatedResults(filteredAttachments, page, pageSize);
+      }
+      
+      // Fallback - should never reach here
+      onProgress?.call(1.0);
+      return _getPaginatedResults(filteredCachedAttachments, page, pageSize);
+    } catch (e) {
+      print('Error fetching attachments: $e');
+      // Return cached data on error
+      final cachedAttachments = await _loadCachedAttachments();
+      final filteredCachedAttachments = _filterAttachments(
+        cachedAttachments,
+        accountId: accountId, 
+        fileType: fileType,
+      );
+      return _getPaginatedResults(filteredCachedAttachments, page, pageSize);
+    }
+  }
+
+  // More efficient merging that prioritizes speed
+  List<EmailAttachment> _efficientMergeAttachments(
+    List<EmailAttachment> existing,
+    List<EmailAttachment> fresh,
+  ) {
+    // Create a map using a fast lookup key
+    final Map<String, EmailAttachment> mergedMap = {};
+    
+    // Add all existing attachments
+    for (var attachment in existing) {
+      final key = '${attachment.emailId}:${attachment.id}';
+      mergedMap[key] = attachment;
+    }
+    
+    // Add or update with fresh attachments
+    for (var attachment in fresh) {
+      final key = '${attachment.emailId}:${attachment.id}';
+      mergedMap[key] = attachment;
+    }
+    
+    // Convert back to list - sorted by date
+    return mergedMap.values.toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  // New background method for full refresh
+  Future<void> _completeRefreshInBackground(String? accountId) async {
+    // Wait 5 seconds to let UI become responsive first
+    await Future.delayed(const Duration(seconds: 5));
+    
+    try {
+      final emailService = UnifiedEmailService();
+      print('Starting complete background refresh');
+      
+      // Full refresh with larger limits
+      final attachments = await emailService.fetchAllAttachments(
+        accountId: accountId,
+        maxEmails: 20,       // Larger batch for background
+        maxAttachments: 60,  // More attachments for completeness
+      );
+      
+      if (attachments.isNotEmpty) {
+        final existingAttachments = await _loadCachedAttachments();
+        final mergedAttachments = _mergeAttachments(
+          existingAttachments, 
+          attachments,
+        );
+        
+        await _cacheAttachments(mergedAttachments);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(
+          'last_attachment_refresh',
+          DateTime.now().millisecondsSinceEpoch,
+        );
+        
+        // Notify UI of refresh completion
+        eventBus.fire(AttachmentsRefreshedEvent());
       }
     } catch (e) {
-      print('AttachmentService: Error in fetchAllAttachments: $e');
-      onProgress?.call(1.0);
+      print('Error in complete background refresh: $e');
+    }
+  }
 
-      // Propagate rate limit errors
-      if (e.toString().contains('429')) {
-        throw e; // Re-throw the rate limit error
-      }
+  // Add a method to check if cache is stale
+  Future<bool> _isCacheStale() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastRefresh = prefs.getInt('last_attachment_refresh') ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
 
-      return [];
+      // Cache is stale if it's more than 30 minutes old
+      return (now - lastRefresh) > (30 * 60 * 1000);
+    } catch (e) {
+      print('Error checking cache freshness: $e');
+      return true; // Consider cache stale if there's an error
+    }
+  }
+
+  // Add a method to check if cache is very stale
+  Future<bool> _isCacheVeryStale() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastRefresh = prefs.getInt('last_attachment_refresh') ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      // Cache is very stale if it's more than 2 hours old
+      return (now - lastRefresh) > (2 * 60 * 60 * 1000);
+    } catch (e) {
+      print('Error checking cache freshness: $e');
+      return true; // Consider cache very stale if there's an error
     }
   }
 
@@ -179,13 +237,13 @@ class AttachmentService {
     DateTime? endDate,
   }) {
     return attachments.where((attachment) {
-      // Account filter
+      // Account filter (only when not in unified inbox)
       if (accountId != null && accountId.isNotEmpty) {
         if (attachment.accountId != accountId) return false;
       }
 
       // File type filter
-      if (fileType != null && fileType.isNotEmpty) {
+      if (fileType != null && fileType.isNotEmpty && fileType != 'All') {
         bool matches = false;
         switch (fileType.toLowerCase()) {
           case 'images':
@@ -201,6 +259,16 @@ class AttachmentService {
             matches =
                 attachment.contentType.contains('excel') ||
                 attachment.contentType.contains('sheet');
+            break;
+          case 'others':
+            // All files that don't match the above types
+            matches =
+                !attachment.contentType.contains('image') &&
+                !attachment.contentType.contains('pdf') &&
+                !attachment.contentType.contains('doc') &&
+                !attachment.contentType.contains('text') &&
+                !attachment.contentType.contains('excel') &&
+                !attachment.contentType.contains('sheet');
             break;
           default:
             matches = attachment.contentType.toLowerCase().contains(
@@ -277,26 +345,89 @@ class AttachmentService {
     }
   }
 
-  // Refresh attachments in background
-  Future<void> _refreshAttachmentsInBackground() async {
+  // Update the background refresh method
+
+  Future<void> _refreshAttachmentsInBackground({String? accountId}) async {
     try {
+      // Add throttling to prevent too many requests
+      await _throttleApiRequests();
+
       final emailService = UnifiedEmailService();
       print('Starting background attachment refresh');
 
-      // Fetch attachments without blocking UI
-      final attachments = await emailService.fetchAllAttachments();
+      // Use the parameters correctly here
+      final attachments = await emailService.fetchAllAttachments(
+        accountId: accountId,
+        maxEmails: 10, // Use the named parameter correctly
+        maxAttachments: 30, // Use the named parameter correctly
+      );
       print('Background fetch complete with ${attachments.length} attachments');
 
-      // Cache results
+      // Rest of the method remains the same...
       if (attachments.isNotEmpty) {
-        await _cacheAttachments(attachments);
+        final existingAttachments = await _loadCachedAttachments();
+        final mergedAttachments = _mergeAttachments(
+          existingAttachments,
+          attachments,
+        );
+        await _cacheAttachments(mergedAttachments);
 
-        // Fire event to notify listeners that new data is available
-        eventBus.fire(AttachmentsRefreshedEvent());
+        // Update last refresh timestamp
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(
+          'last_attachment_refresh',
+          DateTime.now().millisecondsSinceEpoch,
+        );
       }
     } catch (e) {
       print('Error in background refresh: $e');
     }
+  }
+
+  // Merge new attachments with existing ones (avoid duplicates)
+  List<EmailAttachment> _mergeAttachments(
+    List<EmailAttachment> existing,
+    List<EmailAttachment> fresh,
+  ) {
+    // Create a map to identify duplicates by content characteristics
+    final Map<String, EmailAttachment> mergedAttachments = {};
+
+    // Helper function to create a content-based key
+    String getContentKey(EmailAttachment attachment) {
+      // Create a normalized filename by removing any path info and converting to lowercase
+      final normalizedName = attachment.name.split('/').last.toLowerCase();
+
+      // Create a key based on name, size and type (all content-focused attributes)
+      return '$normalizedName|${attachment.size}|${attachment.contentType}';
+    }
+
+    // First, add all existing attachments using content-based key
+    for (var attachment in existing) {
+      final contentKey = getContentKey(attachment);
+      mergedAttachments[contentKey] = attachment;
+    }
+
+    // Then process fresh attachments
+    for (var attachment in fresh) {
+      final contentKey = getContentKey(attachment);
+
+      if (!mergedAttachments.containsKey(contentKey)) {
+        // This is a new unique attachment
+        mergedAttachments[contentKey] = attachment;
+      } else {
+        // This is likely a duplicate - keep the newest one
+        final existingAttachment = mergedAttachments[contentKey]!;
+
+        // Keep the newer one
+        if (attachment.date.isAfter(existingAttachment.date)) {
+          mergedAttachments[contentKey] = attachment;
+        }
+      }
+    }
+
+    // Convert back to list and sort by date (newest first)
+    return mergedAttachments.values.toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
   }
 
   // Mark attachment as favorite (for future feature)
@@ -333,5 +464,24 @@ class AttachmentService {
     } catch (e) {
       print('Error setting category: $e');
     }
+  }
+
+  // Get paginated results
+  List<EmailAttachment> _getPaginatedResults(
+    List<EmailAttachment> attachments,
+    int page,
+    int pageSize,
+  ) {
+    final startIndex = page * pageSize;
+    if (startIndex >= attachments.length) {
+      return []; // No more items for this page
+    }
+
+    final endIndex =
+        (startIndex + pageSize) > attachments.length
+            ? attachments.length
+            : (startIndex + pageSize);
+
+    return attachments.sublist(startIndex, endIndex);
   }
 }

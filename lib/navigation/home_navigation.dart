@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mail_merge/core/services/event_bus.dart';
 import 'package:mail_merge/features/email/screens/email_list_screen.dart';
 import 'package:mail_merge/features/vip_inbox/screens/VipScreen.dart';
 import 'package:mail_merge/features/attachments_hub/screens/AttachmentsScreen.dart';
@@ -221,7 +222,10 @@ class _HomeNavigationState extends State<HomeNavigation>
       _updateBottomNavScreens(forceShimmer: true);
     });
 
-    // Schedule a refresh after shimmer appears
+    // Fire the event for attachments hub to react
+    eventBus.fire(UnifiedInboxToggleEvent(isEnabled));
+
+    // Schedule a refresh for email inbox screens
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_isUnifiedInboxEnabled && _unifiedInboxKey.currentState != null) {
         _unifiedInboxKey.currentState!.fetchEmails(refresh: true).then((_) {

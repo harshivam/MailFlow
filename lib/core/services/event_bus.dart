@@ -18,3 +18,9 @@ class AccountSetDefaultEvent {
   final String accountId;
   AccountSetDefaultEvent(this.accountId);
 }
+
+// Add this new event class
+class UnifiedInboxToggleEvent {
+  final bool isEnabled;
+  UnifiedInboxToggleEvent(this.isEnabled);
+}
