@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class EmailAttachment {
   final String id;
@@ -13,6 +15,11 @@ class EmailAttachment {
   final DateTime date;
   final String accountId;
 
+  // Optional properties for future features
+  final String? localFilePath; // For downloaded attachments
+  final bool? isFavorite; // For favorites feature
+  final String? category; // For categorization feature
+
   const EmailAttachment({
     required this.id,
     required this.name,
@@ -25,6 +32,9 @@ class EmailAttachment {
     required this.senderEmail,
     required this.date,
     required this.accountId,
+    this.localFilePath,
+    this.isFavorite = false,
+    this.category,
   });
 
   // Get appropriate icon based on file type
@@ -38,7 +48,7 @@ class EmailAttachment {
     if (contentType.contains('presentation') ||
         contentType.contains('powerpoint'))
       return Icons.slideshow;
-    if (contentType.contains('zip') || contentType.contains('rar'))
+    if (contentType.contains('zip') || contentType.contains('compressed'))
       return Icons.folder_zip;
     if (contentType.contains('audio')) return Icons.audiotrack;
     if (contentType.contains('video')) return Icons.video_file;
@@ -67,6 +77,9 @@ class EmailAttachment {
       date:
           json['date'] != null ? DateTime.parse(json['date']) : DateTime.now(),
       accountId: json['accountId'] ?? '',
+      localFilePath: json['localFilePath'],
+      isFavorite: json['isFavorite'] ?? false,
+      category: json['category'],
     );
   }
 
@@ -84,6 +97,57 @@ class EmailAttachment {
       'senderEmail': senderEmail,
       'date': date.toIso8601String(),
       'accountId': accountId,
+      'localFilePath': localFilePath,
+      'isFavorite': isFavorite,
+      'category': category,
     };
+  }
+
+  // Create a copy with some updated fields - useful for state updates
+  EmailAttachment copyWith({
+    String? id,
+    String? name,
+    String? contentType,
+    int? size,
+    String? downloadUrl,
+    String? emailId,
+    String? emailSubject,
+    String? senderName,
+    String? senderEmail,
+    DateTime? date,
+    String? accountId,
+    String? localFilePath,
+    bool? isFavorite,
+    String? category,
+  }) {
+    return EmailAttachment(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      contentType: contentType ?? this.contentType,
+      size: size ?? this.size,
+      downloadUrl: downloadUrl ?? this.downloadUrl,
+      emailId: emailId ?? this.emailId,
+      emailSubject: emailSubject ?? this.emailSubject,
+      senderName: senderName ?? this.senderName,
+      senderEmail: senderEmail ?? this.senderEmail,
+      date: date ?? this.date,
+      accountId: accountId ?? this.accountId,
+      localFilePath: localFilePath ?? this.localFilePath,
+      isFavorite: isFavorite ?? this.isFavorite,
+      category: category ?? this.category,
+    );
+  }
+
+  // Add this method to the EmailAttachment class
+  Future<bool> isDownloaded() async {
+    if (localFilePath == null) return false;
+    final file = File(localFilePath!);
+    return await file.exists();
+  }
+
+  // Also add this static helper method
+  static Future<String> generateLocalPath(String filename) async {
+    final directory = await getTemporaryDirectory();
+    return '${directory.path}/$filename';
   }
 }

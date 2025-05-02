@@ -330,8 +330,8 @@ class _HomeNavigationState extends State<HomeNavigation>
 
       // Attachments screen
       _isUnifiedInboxEnabled
-          ? const Attachmentsscreen()
-          : Attachmentsscreen(accountId: _selectedAccountId ?? ''),
+          ? const AttachmentsScreen()
+          : AttachmentsScreen(accountId: _selectedAccountId ?? ''),
 
       // Unsubscribe screen
       const UnsubscribeScreen(),

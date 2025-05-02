@@ -199,7 +199,7 @@ class EmailListScreenState extends State<EmailListScreen>
       // Fetch emails from unified service
       // Performance improvement: This no longer fetches attachments in the same call
       final allEmails = await _emailService.fetchUnifiedEmails(
-        pageToken: refresh ? null : _nextPageToken,
+        pageToken: refresh ? null : _nextPageToken, onlyWithAttachments: false,
       );
 
       // Filter emails for this account if needed

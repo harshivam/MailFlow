@@ -340,4 +340,31 @@ class EmailService {
       return [];
     }
   }
+
+  // Add this method inside the EmailService class
+  Future<Map<String, dynamic>?> getMessage(String messageId) async {
+    try {
+      final url = Uri.parse(
+        'https://www.googleapis.com/gmail/v1/users/me/messages/$messageId?format=full',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        print('Error getting message $messageId: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('Exception getting message $messageId: $e');
+      return null;
+    }
+  }
 }

@@ -1,5 +1,9 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
 import 'package:mail_merge/features/email/services/email_service.dart';
 import 'package:mail_merge/features/email/services/providers/imap_email_service.dart';
+import 'package:mail_merge/features/email/services/unified_email_service.dart';
 import 'package:mail_merge/user/models/email_account.dart';
 import 'package:mail_merge/user/repository/account_repository.dart';
 import 'package:mail_merge/features/attachments_hub/models/attachment.dart';
@@ -10,9 +14,16 @@ class UnifiedEmailService {
   // Service cache to avoid recreating services
   final Map<String, dynamic> _serviceCache = {};
 
+  // Add these fields at the top of UnifiedEmailService class
+  final Map<String, DateTime> _lastRequestTimes = {};
+  final _minTimeBetweenRequests = const Duration(milliseconds: 500);
+  final _maxEmailsToProcess = 10; // Limit to 10 emails to avoid rate limits
+
   Future<List<Map<String, dynamic>>> fetchUnifiedEmails({
     int maxResults = 30,
-    String? pageToken, // not used directly but kept for API consistency
+    String? pageToken,
+    required bool
+    onlyWithAttachments, // not used directly but kept for API consistency
   }) async {
     // Get all accounts
     final accounts = await _accountRepository.getAllAccounts();
@@ -257,72 +268,188 @@ class UnifiedEmailService {
     }
   }
 
-  Future<List<EmailAttachment>> fetchAllAttachments() async {
-    List<EmailAttachment> allAttachments = [];
+  // Add this helper method
+  Future<void> _throttleRequest(String key) async {
+    final now = DateTime.now();
+    final lastRequest = _lastRequestTimes[key];
 
-    try {
-      // Get all emails first
-      final emails = await fetchUnifiedEmails(maxResults: 100);
-
-      // For each email, check if it has attachments
-      for (var email in emails) {
-        // We need to fetch the full message details to get attachment info
-        final service = await _getServiceForAccount(
-          await _accountRepository.getAccountById(email['accountId']),
+    if (lastRequest != null) {
+      final elapsed = now.difference(lastRequest);
+      if (elapsed < _minTimeBetweenRequests) {
+        final waitTime = _minTimeBetweenRequests - elapsed;
+        print(
+          'Throttling request for $key: waiting ${waitTime.inMilliseconds}ms',
         );
-
-        // This is the key improvement - only fetch attachment details on demand
-        if (service is EmailService) {
-          // Get attachments for this email
-          final attachments = await service.fetchAttachmentsForEmail(email);
-
-          // Convert to EmailAttachment objects
-          for (var attachment in attachments) {
-            allAttachments.add(
-              EmailAttachment(
-                id: attachment['id'] ?? '',
-                name: attachment['filename'] ?? 'Unknown',
-                contentType:
-                    attachment['mimeType'] ?? 'application/octet-stream',
-                size: attachment['size'] ?? 0,
-                downloadUrl: attachment['downloadUrl'] ?? '',
-                emailId: email['id'] ?? '',
-                emailSubject: email['message'] ?? '',
-                senderName: email['name'] ?? '',
-                senderEmail: email['from'] ?? '',
-                date: email['_dateTime'] ?? DateTime.now(),
-                accountId: email['accountId'] ?? '',
-              ),
-            );
-          }
-        }
+        await Future.delayed(waitTime);
       }
-
-      // Sort by date, newest first
-      allAttachments.sort((a, b) => b.date.compareTo(a.date));
-
-      return allAttachments;
-    } catch (e) {
-      print('Error fetching attachments: $e');
-      return [];
     }
+
+    _lastRequestTimes[key] = DateTime.now();
   }
 
+  // Replace the fetchAllAttachments method with this version
+  Future<List<EmailAttachment>> fetchAllAttachments() async {
+    List<EmailAttachment> allAttachments = [];
+    int retryCount = 0;
+    final maxRetries = 3;
+    bool shouldRetry = true;
+
+    while (shouldRetry && retryCount <= maxRetries) {
+      try {
+        await _throttleRequest('fetchEmails');
+
+        // Get a smaller set of emails to reduce API calls
+        final emails = await fetchUnifiedEmails(
+          maxResults: 5,
+          onlyWithAttachments: true,
+        );
+
+        print('Found ${emails.length} emails that might have attachments');
+
+        // Process each email with rate limiting
+        for (int i = 0; i < emails.length; i++) {
+          // Added pause between processing each email
+          if (i > 0) {
+            await Future.delayed(Duration(seconds: 1));
+          }
+
+          final email = emails[i];
+          final accountId = email['accountId'];
+          if (accountId == null) continue;
+
+          try {
+            // Get the account info
+            await _throttleRequest('getAccount_$accountId');
+            final account = await _accountRepository.getAccountById(accountId);
+
+            // Get the email service for this account
+            final service = await _getServiceForAccount(account);
+
+            // Process Gmail attachments
+            if (service is EmailService) {
+              // Get message ID
+              final messageId = email['id'];
+              if (messageId == null) continue;
+
+              // Throttle before fetching message
+              await _throttleRequest('email_$messageId');
+
+              // Get the full message details including parts
+              final fullMessage = await service.getMessage(messageId);
+              if (fullMessage == null) {
+                print('Could not get message details for $messageId');
+                continue;
+              }
+
+              // Extract attachments from the message
+              final attachments = await _extractAttachments(
+                fullMessage,
+                accountId,
+              );
+
+              // Create EmailAttachment objects for each attachment
+              for (var attachment in attachments) {
+                allAttachments.add(
+                  EmailAttachment(
+                    id: attachment['id'] ?? '',
+                    name: attachment['filename'] ?? 'Unknown',
+                    contentType:
+                        attachment['mimeType'] ?? 'application/octet-stream',
+                    size: attachment['size'] ?? 0,
+                    downloadUrl: attachment['downloadUrl'] ?? '',
+                    emailId: messageId,
+                    emailSubject: email['message'] ?? '',
+                    senderName: email['name'] ?? '',
+                    senderEmail: email['from'] ?? '',
+                    date: email['_dateTime'] ?? DateTime.now(),
+                    accountId: accountId,
+                  ),
+                );
+              }
+            }
+          } catch (e) {
+            print('Error processing email ${email['id']}: $e');
+            // Continue to next email - don't rethrow
+          }
+        }
+
+        // If we reach here without exceptions, no need to retry
+        shouldRetry = false;
+
+        // Sort by date, newest first
+        allAttachments.sort((a, b) => b.date.compareTo(a.date));
+
+        print('Found ${allAttachments.length} attachments total');
+      } catch (e) {
+        if (e.toString().contains('429')) {
+          print('Rate limited (429) while fetching emails. Backing off.');
+          if (retryCount < maxRetries) {
+            retryCount++;
+            await Future.delayed(Duration(seconds: 5 * retryCount));
+            // Continue to the next iteration to retry
+            continue;
+          }
+        }
+        // If not a 429 error or we've exceeded retries, return empty list
+        print('Error fetching attachments: $e');
+        return [];
+      }
+    }
+
+    return allAttachments;
+  }
+
+  // In UnifiedEmailService class:
+  Future<List<EmailAttachment>> fetchPaginatedAttachments({
+    int page = 0,
+    int pageSize = 3,
+  }) async {
+    // Only fetch 3 emails per page to avoid rate limits
+    final emails = await fetchUnifiedEmails(
+      maxResults: 5,
+      onlyWithAttachments: true,
+    );
+
+    // Process emails with proper delays between requests
+    // TODO: Implement pagination logic
+    return []; // Return empty list for now
+  }
+
+  // Update this method to add more debugging
   Future<List<Map<String, dynamic>>> _extractAttachments(
     Map<String, dynamic> message,
     String accountId,
   ) async {
     List<Map<String, dynamic>> attachments = [];
 
-    // Check for message parts (where attachments live in Gmail API)
-    if (message['payload'] != null && message['payload']['parts'] != null) {
+    try {
+      print('Extracting attachments from message ID: ${message['id']}');
+
+      // Check if message payload exists
+      if (message['payload'] == null) {
+        print('Message payload is null');
+        return attachments;
+      }
+
+      // Check if parts exist
+      if (message['payload']['parts'] == null) {
+        print('No parts found in message ${message['id']}');
+        return attachments;
+      }
+
       var parts = message['payload']['parts'] as List;
+      print('Found ${parts.length} parts in message ${message['id']}');
+
       for (var part in parts) {
         // Parts with filename and attachmentId are attachments
         if (part['filename'] != null &&
             part['filename'].toString().isNotEmpty &&
             part['body'] != null &&
             part['body']['attachmentId'] != null) {
+          print(
+            'Found attachment: ${part['filename']} in message ${message['id']}',
+          );
+          print('Found attachment of type: ${part['mimeType']} with filename: ${part['filename']}');
           attachments.add({
             'id': part['body']['attachmentId'],
             'filename': part['filename'],
@@ -333,8 +460,14 @@ class UnifiedEmailService {
           });
         }
       }
-    }
 
-    return attachments;
+      print(
+        'Extracted ${attachments.length} attachments from message ${message['id']}',
+      );
+      return attachments;
+    } catch (e) {
+      print('Error extracting attachments from message ${message['id']}: $e');
+      return attachments;
+    }
   }
 }
