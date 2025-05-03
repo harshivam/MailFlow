@@ -21,9 +21,8 @@ class HomeNavigation extends StatefulWidget {
 
 class _HomeNavigationState extends State<HomeNavigation>
     with WidgetsBindingObserver {
-  // Create persistent keys that don't change across rebuilds
-  final _unifiedInboxKey = GlobalKey<EmailListScreenState>();
-  final _accountSpecificInboxKey = GlobalKey<EmailListScreenState>();
+  // Keep only this key:
+  final GlobalKey<EmailListScreenState> emailListKey = GlobalKey();
 
   // Track the sidebar navigation selection
   int _sidebarIndex = 0;
@@ -227,18 +226,8 @@ class _HomeNavigationState extends State<HomeNavigation>
 
     // Schedule a refresh for email inbox screens
     Future.delayed(const Duration(milliseconds: 100), () {
-      if (_isUnifiedInboxEnabled && _unifiedInboxKey.currentState != null) {
-        _unifiedInboxKey.currentState!.fetchEmails(refresh: true).then((_) {
-          // IMPORTANT: Turn off shimmer when fetch completes
-          setState(() {
-            _updateBottomNavScreens(forceShimmer: false);
-          });
-        });
-      } else if (!_isUnifiedInboxEnabled &&
-          _accountSpecificInboxKey.currentState != null) {
-        _accountSpecificInboxKey.currentState!.fetchEmails(refresh: true).then((
-          _,
-        ) {
+      if (emailListKey.currentState != null) {
+        emailListKey.currentState!.fetchEmails(refresh: true).then((_) {
           // IMPORTANT: Turn off shimmer when fetch completes
           setState(() {
             _updateBottomNavScreens(forceShimmer: false);
@@ -281,25 +270,14 @@ class _HomeNavigationState extends State<HomeNavigation>
 
         // Schedule a refresh after shimmer appears
         Future.delayed(const Duration(milliseconds: 100), () {
-          if (_isUnifiedInboxEnabled && _unifiedInboxKey.currentState != null) {
+          if (emailListKey.currentState != null) {
             // Begin email fetch with feedback when complete
-            _unifiedInboxKey.currentState!.fetchEmails(refresh: true).then((_) {
+            emailListKey.currentState!.fetchEmails(refresh: true).then((_) {
               // IMPORTANT: Turn off shimmer when fetch completes
               setState(() {
                 _updateBottomNavScreens(forceShimmer: false);
               });
             });
-          } else if (!_isUnifiedInboxEnabled &&
-              _accountSpecificInboxKey.currentState != null) {
-            // Begin email fetch with feedback when complete
-            _accountSpecificInboxKey.currentState!
-                .fetchEmails(refresh: true)
-                .then((_) {
-                  // IMPORTANT: Turn off shimmer when fetch completes
-                  setState(() {
-                    _updateBottomNavScreens(forceShimmer: false);
-                  });
-                });
           }
         });
       } else {
@@ -312,20 +290,22 @@ class _HomeNavigationState extends State<HomeNavigation>
 
   // Update bottom nav screens method
   void _updateBottomNavScreens({bool forceShimmer = false}) {
+    print('DEBUG: Updating bottom nav screens');
+
     _bottomNavScreens = [
       // Inbox screen
       _isUnifiedInboxEnabled
           ? EmailListScreen(
-            key: _unifiedInboxKey,
-            accessToken: _accessToken,
-            forceLoading: forceShimmer,
-          )
+              key: emailListKey,
+              accessToken: _accessToken,
+              forceLoading: forceShimmer,
+            )
           : EmailListScreen(
-            key: _accountSpecificInboxKey,
-            accessToken: _accessToken,
-            accountId: _selectedAccountId,
-            forceLoading: forceShimmer,
-          ),
+              key: emailListKey,
+              accessToken: _accessToken,
+              accountId: _selectedAccountId,
+              forceLoading: forceShimmer,
+            ),
 
       // VIP screen
       _isUnifiedInboxEnabled
@@ -342,6 +322,8 @@ class _HomeNavigationState extends State<HomeNavigation>
           ? const UnsubscribeScreen()
           : UnsubscribeScreen(accountId: _selectedAccountId ?? ''),
     ];
+
+    print('DEBUG: Bottom nav screens updated, inbox key is $emailListKey');
   }
 
   @override
@@ -375,6 +357,41 @@ class _HomeNavigationState extends State<HomeNavigation>
         isUnifiedInboxEnabled: _isUnifiedInboxEnabled, // Pass the toggle state
         onUnifiedInboxToggled:
             _handleUnifiedInboxToggled, // Pass the toggle callback
+        // Add filter callback
+        onFilterSelected: (keyword) {
+          print('DEBUG: Filter selected with keyword: $keyword');
+
+          // Make sure we're on the inbox tab
+          setState(() {
+            _bottomNavIndex = 0;
+          });
+
+          // Check if the key is working
+          print('DEBUG: emailListKey.currentState is ${emailListKey.currentState != null ? 'NOT NULL' : 'NULL'}');
+
+          // Apply the filter
+          if (emailListKey.currentState != null) {
+            print('DEBUG: Calling filterByKeyword on EmailListScreen');
+            emailListKey.currentState!.filterByKeyword(keyword);
+          } else {
+            print('ERROR: emailListKey.currentState is null, cannot filter!');
+
+            // Force a rebuild with the proper key
+            setState(() {
+              _updateBottomNavScreens();
+            });
+
+            // Try again after rebuild
+            Future.delayed(Duration(milliseconds: 200), () {
+              if (emailListKey.currentState != null) {
+                print('DEBUG: Retrying filterByKeyword after rebuild');
+                emailListKey.currentState!.filterByKeyword(keyword);
+              } else {
+                print('ERROR: Still cannot access EmailListScreen state!');
+              }
+            });
+          }
+        },
       ),
       // Add swipe to open drawer functionality
       body: GestureDetector(

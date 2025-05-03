@@ -39,6 +39,9 @@ class EmailListScreenState extends State<EmailListScreen>
   // Track the current account ID to detect changes
   String? _currentAccountId;
 
+  // Last applied keyword for filtering
+  String? _lastAppliedKeyword;
+
   @override
   bool get wantKeepAlive => true; // Keep state when switching tabs
 
@@ -192,23 +195,49 @@ class EmailListScreenState extends State<EmailListScreen>
         // This gives a better UX by showing the user their existing content
         // while loading fresh data
         emailData = [];
+
+        // ONLY clear filter if explicitly requested
+        // Don't reset _lastAppliedKeyword here
       }
     });
 
     try {
       // Fetch emails from unified service
-      // Performance improvement: This no longer fetches attachments in the same call
       final allEmails = await _emailService.fetchUnifiedEmails(
-        pageToken: refresh ? null : _nextPageToken, onlyWithAttachments: false,
+        pageToken: refresh ? null : _nextPageToken,
+        onlyWithAttachments: false,
       );
 
       // Filter emails for this account if needed
-      final filteredEmails =
+      var filteredEmails =
           widget.accountId != null && widget.accountId!.isNotEmpty
               ? allEmails
                   .where((email) => email['accountId'] == widget.accountId)
                   .toList()
               : allEmails;
+
+      // IMPORTANT: Apply keyword filter if there's an active filter
+      if (_lastAppliedKeyword != null && _lastAppliedKeyword!.isNotEmpty) {
+        print('DEBUG: Re-applying filter for keyword: $_lastAppliedKeyword');
+        final keywordLower = _lastAppliedKeyword!.toLowerCase();
+
+        filteredEmails =
+            filteredEmails.where((email) {
+              final subject = (email['message'] ?? '').toString().toLowerCase();
+              final body =
+                  (email['plainTextBody'] ?? '').toString().toLowerCase();
+              final snippet = (email['snippet'] ?? '').toString().toLowerCase();
+              final sender = (email['name'] ?? '').toString().toLowerCase();
+              final senderEmail =
+                  (email['from'] ?? '').toString().toLowerCase();
+
+              return subject.contains(keywordLower) ||
+                  body.contains(keywordLower) ||
+                  snippet.contains(keywordLower) ||
+                  sender.contains(keywordLower) ||
+                  senderEmail.contains(keywordLower);
+            }).toList();
+      }
 
       // Check if widget is still mounted
       if (!mounted) return;
@@ -232,7 +261,95 @@ class EmailListScreenState extends State<EmailListScreen>
       _cacheEmails();
     } catch (e) {
       print('Error fetching emails: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
+  // Make the filterByKeyword method more robust
+  Future<void> filterByKeyword(String keyword) async {
+    print('DEBUG: filterByKeyword called with "$keyword"');
+
+    if (keyword.isEmpty) {
+      print('DEBUG: Empty keyword, refreshing all emails');
+      fetchEmails(refresh: true);
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Get all emails (or use current set if already loaded)
+      List<Map<String, dynamic>> allEmails;
+      if (emailData.isEmpty) {
+        print('DEBUG: No existing emails, fetching from service');
+        allEmails = await _emailService.fetchUnifiedEmails(
+          onlyWithAttachments: false,
+        );
+        print('DEBUG: Fetched ${allEmails.length} emails from service');
+      } else {
+        print('DEBUG: Using ${emailData.length} existing emails for filtering');
+        allEmails = List.from(emailData);
+      }
+
+      // Now filter emails that match the keyword
+      print('DEBUG: Filtering emails with keyword: "$keyword"');
+      final filteredEmails =
+          allEmails.where((email) {
+            final subject = (email['message'] ?? '').toString().toLowerCase();
+            final body =
+                (email['plainTextBody'] ?? '').toString().toLowerCase();
+            final snippet = (email['snippet'] ?? '').toString().toLowerCase();
+            final sender = (email['name'] ?? '').toString().toLowerCase();
+            final senderEmail = (email['from'] ?? '').toString().toLowerCase();
+
+            final keywordLower = keyword.toLowerCase();
+
+            // Check if any field contains the keyword
+            return subject.contains(keywordLower) ||
+                body.contains(keywordLower) ||
+                snippet.contains(keywordLower) ||
+                sender.contains(keywordLower) ||
+                senderEmail.contains(keywordLower);
+          }).toList();
+
+      print('DEBUG: Found ${filteredEmails.length} emails matching "$keyword"');
+
+      if (!mounted) {
+        print('DEBUG: Widget no longer mounted, aborting filter update');
+        return;
+      }
+
+      setState(() {
+        emailData = filteredEmails;
+        _isLoading = false;
+        _lastAppliedKeyword = keyword; // Store the keyword
+
+        // Important: Reset pagination variables so user can still refresh
+        _hasMore = false;
+        _nextPageToken = null;
+      });
+
+      // If no results found, show a message
+      if (filteredEmails.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No emails found matching "$keyword"')),
+        );
+      } else {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Found ${filteredEmails.length} emails matching "$keyword"',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('ERROR filtering emails: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -247,9 +364,20 @@ class EmailListScreenState extends State<EmailListScreen>
     }
   }
 
+  void clearFilter() {
+    setState(() {
+      _lastAppliedKeyword = null;
+    });
+    fetchEmails(refresh: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+    // Check for active filters and show clear button if needed
+    final isFiltered =
+        (_lastAppliedKeyword != null && _lastAppliedKeyword!.isNotEmpty);
 
     // Always show shimmer when forceLoading is true
     if (widget.forceLoading) {
@@ -257,84 +385,84 @@ class EmailListScreenState extends State<EmailListScreen>
     }
 
     // Rest of your existing build code...
-    if (_isLoading && emailData.isEmpty && !_loadingFromCache) {
-      return const EmailShimmerList();
-    }
 
-    // If not authenticated, show sign-in prompt
-    if (widget.accessToken.isEmpty) {
-      // Clear cached data if user is not authenticated
-      if (emailData.isNotEmpty) {
-        emailData.clear();
-        _nextPageToken = null;
-        _hasMore = true;
-      }
-
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("Sign in to view your emails"),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddEmailAccountsPage(),
-                  ),
-                );
-              },
-              child: const Text("Add Email Account"),
+    // Modified RefreshIndicator section to include clear filter button when needed
+    return Column(
+      children: [
+        // Show filter status bar if a filter is applied
+        if (isFiltered)
+          Container(
+            color: Colors.blue.withOpacity(0.1),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.filter_list, size: 18, color: Colors.blue),
+                SizedBox(width: 8),
+                Text(
+                  'Filtered by: $_lastAppliedKeyword',
+                  style: TextStyle(color: Colors.blue),
+                ),
+                Spacer(),
+                TextButton(
+                  onPressed: () => clearFilter(),
+                  child: Text('CLEAR FILTER'),
+                ),
+              ],
             ),
-          ],
+          ),
+
+        // Main email list
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              // If there's a filter, refresh with the filter preserved
+              if (_lastAppliedKeyword != null &&
+                  _lastAppliedKeyword!.isNotEmpty) {
+                await fetchEmails(refresh: true);
+                return;
+              } else {
+                // Regular refresh with no filter
+                return fetchEmails(refresh: true);
+              }
+            },
+            child:
+                emailData.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+                      itemCount: emailData.length + (_hasMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        // Show loading indicator at the bottom during pagination
+                        if (index == emailData.length) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+
+                        // Don't access emailData if index is out of bounds
+                        if (index >= emailData.length) {
+                          return const SizedBox.shrink();
+                        }
+
+                        // Display the email item
+                        final email = emailData[index];
+                        return EmailItem(
+                          name: email["name"] ?? "Unknown",
+                          subject: email["message"] ?? "",
+                          time: email["time"] ?? "",
+                          snippet: email["snippet"] ?? "",
+                          avatar:
+                              email["avatar"] ??
+                              "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
+                          emailData: email, // Pass the complete email data
+                        );
+                      },
+                    ),
+          ),
         ),
-      );
-    }
-
-    // Show shimmer loading effect when first loading with no cached data
-    if (_isLoading && emailData.isEmpty && !_loadingFromCache) {
-      return const EmailShimmerList(); // Shows animated loading placeholders
-    }
-
-    // Main email list with pull-to-refresh
-    return RefreshIndicator(
-      onRefresh: () => fetchEmails(refresh: true),
-      child:
-          emailData.isEmpty
-              ? _buildEmptyState()
-              : ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                itemCount: emailData.length + (_hasMore ? 1 : 0),
-                itemBuilder: (context, index) {
-                  // Show loading indicator at the bottom during pagination
-                  if (index == emailData.length) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-
-                  // Don't access emailData if index is out of bounds
-                  if (index >= emailData.length) {
-                    return const SizedBox.shrink();
-                  }
-
-                  // Display the email item
-                  final email = emailData[index];
-                  return EmailItem(
-                    name: email["name"] ?? "Unknown",
-                    subject: email["message"] ?? "",
-                    time: email["time"] ?? "",
-                    snippet: email["snippet"] ?? "",
-                    avatar:
-                        email["avatar"] ??
-                        "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
-                    emailData: email, // Pass the complete email data
-                  );
-                },
-              ),
+      ],
     );
   }
 
