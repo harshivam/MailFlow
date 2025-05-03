@@ -4,9 +4,13 @@ import 'package:html_unescape/html_unescape.dart';
 
 class SimpleHtmlViewer extends StatefulWidget {
   final String htmlContent;
+  final double initialHeight; // Allow overriding default height
 
-  const SimpleHtmlViewer({Key? key, required this.htmlContent})
-    : super(key: key);
+  const SimpleHtmlViewer({
+    Key? key,
+    required this.htmlContent,
+    this.initialHeight = 1.0, // Start with minimal height
+  }) : super(key: key);
 
   @override
   State<SimpleHtmlViewer> createState() => _SimpleHtmlViewerState();
@@ -17,14 +21,12 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
   bool _isLoading = true;
   final HtmlUnescape _unescape = HtmlUnescape();
   double _webViewHeight = 1; // Start with minimal height
-  final _defaultHeight = 300.0; // Fallback height if calculation fails
-  final _heightNotifier = ValueNotifier<double>(
-    300.0,
-  ); // Use ValueNotifier for dynamic updates
+  late final ValueNotifier<double> _heightNotifier;
 
   @override
   void initState() {
     super.initState();
+    _heightNotifier = ValueNotifier<double>(widget.initialHeight);
 
     // Initialize the controller
     _controller =
@@ -66,55 +68,26 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
     super.dispose();
   }
 
-  void _evaluateHeight() {
-    _controller
-        .runJavaScriptReturningResult('''
-      (function() {
-        // Get the full height of content
-        const height = Math.max(
-          document.body.scrollHeight,
-          document.documentElement.scrollHeight,
-          document.body.offsetHeight,
-          document.documentElement.offsetHeight
-        );
-        
-        // Send it to Flutter
-        Height.postMessage(height);
-        
-        // Add resize observer to handle dynamic content changes
-        const resizeObserver = new ResizeObserver(entries => {
-          const height = Math.max(
-            document.body.scrollHeight,
-            document.documentElement.scrollHeight,
-            document.body.offsetHeight,
-            document.documentElement.offsetHeight
-          );
-          Height.postMessage(height);
-        });
-        
-        resizeObserver.observe(document.body);
-        
-        return height;
-      })();
-    ''')
-        .then((result) {
-          // Handle the initial height
-          try {
-            final height = double.tryParse(
-              result.toString().replaceAll('"', ''),
-            );
-            if (height != null && height > 100) {
-              _heightNotifier.value = height;
-            }
-          } catch (e) {
-            print('Error parsing height: $e');
-          }
-        });
-  }
-
+  // Modify the _processHtmlContent method to detect effectively empty content
   String _processHtmlContent(String content) {
     // Pre-process the content to fix common issues
-    String processed = content;
+    String processed = content.trim();
+
+    // Quick check for completely empty content
+    if (processed.isEmpty || RegExp(r'^\s*$').hasMatch(processed)) {
+      // Return minimal HTML with custom marker for empty content
+      return '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>body { margin: 0; padding: 0; }</style>
+        </head>
+        <body data-empty="true"></body>
+        </html>
+      ''';
+    }
 
     try {
       // Fix HTML entities that might be double-encoded
@@ -212,11 +185,53 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
     ''';
   }
 
+  void _evaluateHeight() {
+    _controller
+        .runJavaScriptReturningResult('''
+      (function() {
+        // Special case for empty content
+        if (document.body.hasAttribute('data-empty')) {
+          return 0;
+        }
+        
+        // Rest of your height calculation logic
+        const height = Math.max(
+          document.body.scrollHeight || 0,
+          document.documentElement.scrollHeight || 0,
+          document.body.offsetHeight || 0,
+          document.documentElement.offsetHeight || 0
+        );
+        
+        // If height is very small (likely empty content), return 0
+        if (height < 50) return 0;
+        
+        return height;
+      })();
+    ''')
+        .then((result) {
+          try {
+            final height =
+                double.tryParse(result.toString().replaceAll('"', '')) ?? 0;
+            // Only update if height is greater than zero or it's explicitly zero
+            if (result.toString().contains('0') || height > 0) {
+              _heightNotifier.value = height;
+            }
+          } catch (e) {
+            print('Error parsing height: $e');
+          }
+        });
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
       valueListenable: _heightNotifier,
       builder: (context, height, child) {
+        // Don't render at all if height is zero
+        if (height <= 0) {
+          return const SizedBox.shrink();
+        }
+
         return SizedBox(
           width: double.infinity,
           height: height,

@@ -337,17 +337,20 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     final hasAttachments =
         (widget.email['attachments'] as List<dynamic>?)?.isNotEmpty == true;
 
-    // First check if we have HTML content
+    // First check if we have meaningful HTML content
     if (widget.email['htmlBody'] != null &&
-        widget.email['htmlBody'].toString().isNotEmpty) {
+        !_isHtmlContentEffectivelyEmpty(widget.email['htmlBody'].toString())) {
       print("Using HTML viewer for email content");
 
-      // Fix #1: Replace SizedBox with Container + SingleChildScrollView combination
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Using SimpleHtmlViewer with dynamic height adjustment
-          SimpleHtmlViewer(htmlContent: widget.email['htmlBody']),
+          // Using SimpleHtmlViewer with better emptiness detection
+          SimpleHtmlViewer(
+            htmlContent: widget.email['htmlBody'],
+            // Add a key to force recreation when content changes
+            key: ValueKey('html-${widget.email['id']}'),
+          ),
           // Still show attachments after HTML content
           if (hasAttachments) _buildAttachments(),
         ],
@@ -510,5 +513,39 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       date: DateTime.tryParse(email['time'] ?? '') ?? DateTime.now(),
       accountId: email['accountId'] ?? '',
     );
+  }
+
+  // Add this method to EmailDetailScreen class
+  bool _isHtmlContentEffectivelyEmpty(String? html) {
+    if (html == null || html.isEmpty) return true;
+
+    // First check: strip whitespace
+    final trimmed = html.trim();
+    if (trimmed.isEmpty) return true;
+
+    // Second check: common empty HTML patterns
+    final lowerTrimmed = trimmed.toLowerCase();
+
+    // Check for empty or nearly empty HTML structures
+    final emptyHtmlPatterns = [
+      r'<html[^>]*>(\s*)<\/html>',
+      r'<html[^>]*>(\s*)<body[^>]*>(\s*)<\/body>(\s*)<\/html>',
+      r'<div[^>]*>(\s*)<\/div>',
+      r'<p[^>]*>(\s*)<\/p>',
+      r'&nbsp;',
+      r'<br[^>]*>',
+    ];
+
+    // Replace all these patterns with empty string
+    String simplified = lowerTrimmed;
+    for (final pattern in emptyHtmlPatterns) {
+      simplified = simplified.replaceAll(RegExp(pattern), '');
+    }
+
+    // Remove all HTML tags for final check
+    simplified = simplified.replaceAll(RegExp(r'<[^>]+>'), '').trim();
+
+    // If after removing everything, we have empty string or just whitespace, it's empty
+    return simplified.isEmpty || RegExp(r'^\s*$').hasMatch(simplified);
   }
 }
