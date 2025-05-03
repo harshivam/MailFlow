@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:marquee/marquee.dart';
+import 'package:mail_merge/utils/file_utils.dart';
 
 class AttachmentItem extends StatelessWidget {
   final EmailAttachment attachment;
@@ -18,46 +19,38 @@ class AttachmentItem extends StatelessWidget {
   const AttachmentItem({Key? key, required this.attachment, this.onViewDetails})
     : super(key: key);
 
+  // Consolidate duplicate file type handling
+  Map<String, dynamic> _getFileTypeProperties(String contentType) {
+    if (contentType.contains('image'))
+      return {'color': Colors.lightBlue, 'icon': Icons.image};
+    if (contentType.contains('pdf'))
+      return {'color': Colors.red, 'icon': Icons.picture_as_pdf};
+    if (contentType.contains('word') || contentType.contains('document'))
+      return {'color': Colors.blue, 'icon': Icons.description};
+    if (contentType.contains('excel') || contentType.contains('spreadsheet'))
+      return {'color': Colors.green, 'icon': Icons.table_chart};
+    if (contentType.contains('presentation') ||
+        contentType.contains('powerpoint'))
+      return {'color': Colors.orange, 'icon': Icons.slideshow};
+    if (contentType.contains('zip') || contentType.contains('rar'))
+      return {'color': Colors.purple, 'icon': Icons.folder_zip};
+    if (contentType.contains('audio'))
+      return {'color': Colors.amber, 'icon': Icons.audiotrack};
+    if (contentType.contains('video'))
+      return {'color': Colors.pink, 'icon': Icons.movie};
+
+    // Default
+    return {'color': Colors.grey, 'icon': Icons.insert_drive_file};
+  }
+
   // Helper method to get background color based on file type
   Color _getBackgroundColor() {
-    if (attachment.contentType.contains('image')) return Colors.lightBlue[50]!;
-    if (attachment.contentType.contains('pdf')) return Colors.red[50]!;
-    if (attachment.contentType.contains('word') ||
-        attachment.contentType.contains('document'))
-      return Colors.blue[50]!;
-    if (attachment.contentType.contains('excel') ||
-        attachment.contentType.contains('spreadsheet'))
-      return Colors.green[50]!;
-    if (attachment.contentType.contains('presentation') ||
-        attachment.contentType.contains('powerpoint'))
-      return Colors.orange[50]!;
-    if (attachment.contentType.contains('zip') ||
-        attachment.contentType.contains('rar'))
-      return Colors.purple[50]!;
-    if (attachment.contentType.contains('audio')) return Colors.amber[50]!;
-    if (attachment.contentType.contains('video')) return Colors.pink[50]!;
-    return Colors.grey[50]!;
+    return _getFileTypeProperties(attachment.contentType)['color'][50]!;
   }
 
   // Helper method to get icon color based on file type
   Color _getIconColor() {
-    if (attachment.contentType.contains('image')) return Colors.lightBlue[700]!;
-    if (attachment.contentType.contains('pdf')) return Colors.red[700]!;
-    if (attachment.contentType.contains('word') ||
-        attachment.contentType.contains('document'))
-      return Colors.blue[700]!;
-    if (attachment.contentType.contains('excel') ||
-        attachment.contentType.contains('spreadsheet'))
-      return Colors.green[700]!;
-    if (attachment.contentType.contains('presentation') ||
-        attachment.contentType.contains('powerpoint'))
-      return Colors.orange[700]!;
-    if (attachment.contentType.contains('zip') ||
-        attachment.contentType.contains('rar'))
-      return Colors.purple[700]!;
-    if (attachment.contentType.contains('audio')) return Colors.amber[700]!;
-    if (attachment.contentType.contains('video')) return Colors.pink[700]!;
-    return Colors.grey[700]!;
+    return _getFileTypeProperties(attachment.contentType)['color'][700]!;
   }
 
   @override
@@ -268,7 +261,7 @@ class AttachmentItem extends StatelessWidget {
       final tempDir = await getTemporaryDirectory();
 
       // Ensure the filename has the correct extension and is safe
-      final safeFilename = _getSafeFilename(
+      final safeFilename = FileUtils.getSafeFilename(
         attachment.name,
         attachment.contentType,
       );
@@ -307,28 +300,10 @@ class AttachmentItem extends StatelessWidget {
           final jsonResponse = jsonDecode(response.body);
           final base64Data = jsonResponse['data'];
           if (base64Data == null) {
-            throw Exception('No data field in attachment response');
+            throw Exception('Invalid attachment data');
           }
 
-          // Process the base64 data properly
-          final sanitizedBase64 = base64Data
-              .trim()
-              .replaceAll('-', '+')
-              .replaceAll('_', '/');
-
-          // Calculate padding
-          final padding = sanitizedBase64.length % 4;
-          final padded =
-              padding > 0
-                  ? sanitizedBase64 + ('=' * (4 - padding).toInt())
-                  : sanitizedBase64;
-
-          // Decode the Base64 data to bytes
-          final bytes = base64.decode(padded);
-
-          // Write the decoded bytes to file
-          await file.writeAsBytes(bytes);
-          print('File downloaded and saved to: ${file.path}');
+          await FileUtils.writeBase64ToFile(base64Data, file.path);
         } catch (e) {
           print('Error processing attachment data: $e');
           throw Exception('Invalid attachment format: $e');
@@ -442,30 +417,10 @@ class AttachmentItem extends StatelessWidget {
           // Extract the base64 data
           final base64Data = jsonResponse['data'];
           if (base64Data == null) {
-            throw Exception('No data field in attachment response');
+            throw Exception('Invalid attachment data');
           }
 
-          // Remove any URL-safe modifications before decoding
-          final normalizedBase64 = base64Data
-              .replaceAll('-', '+')
-              .replaceAll('_', '/');
-
-          // Pad the string if necessary
-          String padded = normalizedBase64;
-          switch (normalizedBase64.length % 4) {
-            case 2:
-              padded += '==';
-              break;
-            case 3:
-              padded += '=';
-              break;
-          }
-
-          // Decode the Base64 data to bytes
-          final bytes = base64.decode(padded);
-
-          // Write the decoded bytes to file
-          await file.writeAsBytes(bytes);
+          await FileUtils.writeBase64ToFile(base64Data, file.path);
         } catch (e) {
           print('Error processing attachment data: $e');
           throw Exception('Invalid attachment format: $e');
@@ -573,23 +528,6 @@ class AttachmentItem extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
-  }
-
-  // Add this new method to sanitize filenames
-  String _getSafeFilename(String filename, String contentType) {
-    // Remove invalid characters from filename (/, \, :, *, ?, ", <, >, |)
-    final sanitized = filename.replaceAll(RegExp(r'[\/\\\:\*\?\"\<\>\|]'), '_');
-
-    // Ensure filename isn't too long
-    var safeFilename =
-        sanitized.length > 100 ? sanitized.substring(0, 100) : sanitized;
-
-    // Add extension if missing
-    if (!safeFilename.contains('.')) {
-      safeFilename = _ensureFileExtension(safeFilename, contentType);
-    }
-
-    return safeFilename;
   }
 
   // Add this function to help with image data debugging

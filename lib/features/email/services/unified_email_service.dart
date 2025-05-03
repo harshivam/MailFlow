@@ -413,7 +413,9 @@ class UnifiedEmailService {
           if (processedAttachments + attachments.length > maxAttachments) {
             // Take only what we need to reach maxAttachments
             allAttachments.addAll(
-              attachments.take(maxAttachments - processedAttachments).cast<EmailAttachment>(),
+              attachments
+                  .take(maxAttachments - processedAttachments)
+                  .cast<EmailAttachment>(),
             );
             processedAttachments = maxAttachments;
             break;

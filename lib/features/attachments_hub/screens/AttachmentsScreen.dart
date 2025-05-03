@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/features/attachments_hub/models/attachment.dart';
 import 'package:mail_merge/features/attachments_hub/services/attachment_service.dart';
+import 'package:mail_merge/features/attachments_hub/widgets/attachment_grid.dart';
 import 'package:mail_merge/features/attachments_hub/widgets/attachment_item.dart';
 import 'package:mail_merge/features/attachments_hub/widgets/attachment_shimmer.dart';
 import 'package:mail_merge/core/services/event_bus.dart';
@@ -525,24 +526,19 @@ class _AttachmentsScreenState extends State<AttachmentsScreen>
     return Column(
       children: [
         Expanded(
-          child: GridView.builder(
+          child: ListView(
             padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.68,
-            ),
-            itemCount: _attachments.length,
-            itemBuilder: (context, index) {
-              final attachment = _attachments[index];
-              return AttachmentItem(
-                attachment: attachment,
-                onViewDetails: (attachment) {
+            children: [
+              AttachmentGrid(
+                attachments: _attachments,
+                crossAxisCount: 2,
+                
+                onAttachmentTap: (attachment) {
                   print('View details for ${attachment.name}');
+                  // Your existing attachment tap logic
                 },
-              );
-            },
+              ),
+            ],
           ),
         ),
         if (_hasMoreAttachments)

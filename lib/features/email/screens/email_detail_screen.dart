@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:mail_merge/features/email/services/email_service.dart';
+import 'package:mail_merge/features/email/widgets/simple_html_viewer.dart';
+import 'package:mail_merge/user/repository/account_repository.dart';
 import 'package:mail_merge/utils/date_formatter.dart';
 import 'package:mail_merge/features/email/screens/compose_email_screen.dart';
 import 'package:mail_merge/features/vip_inbox/services/contact_service.dart';
 import 'package:mail_merge/features/vip_inbox/models/contact.dart';
+import 'package:mail_merge/features/email/widgets/html_email_viewer.dart';
+import 'package:mail_merge/features/attachments_hub/models/attachment.dart';
+import 'package:mail_merge/features/attachments_hub/widgets/attachment_item.dart';
+import 'package:mail_merge/features/attachments_hub/widgets/attachment_grid.dart';
 
 class EmailDetailScreen extends StatefulWidget {
   final Map<String, dynamic> email;
@@ -21,9 +28,9 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize based on email read status if available
     _isRead = widget.email["isRead"] ?? true;
     _checkIfVip();
+    _checkForAttachments(); // Changed from _loadEmailAttachments
   }
 
   // Check if the sender is already in VIP list
@@ -121,6 +128,19 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     );
   }
 
+  // Check for email attachments
+  void _checkForAttachments() {
+    // Just check if email has an 'attachments' field or a hasAttachments flag
+    final List<dynamic> existingAttachments =
+        widget.email['attachments'] as List<dynamic>? ?? [];
+    final bool hasAttachmentFlag = widget.email['hasAttachments'] == true;
+
+    print('Email has ${existingAttachments.length} attachments');
+    print('Email hasAttachments flag: $hasAttachmentFlag');
+
+    // We don't need to do anything else - just use what's already there
+  }
+
   @override
   Widget build(BuildContext context) {
     // Extract the sender's email address
@@ -149,100 +169,107 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.email["message"] ?? "No Subject",
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundImage: NetworkImage(
-                    widget.email["avatar"] ??
-                        "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.email["message"] ?? "No Subject",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  radius: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 20),
+                  // Sender info row with avatar
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              widget.email["name"] ?? "Unknown",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                          if (_isVip)
-                            const Icon(
-                              Icons.star,
-                              color: Colors.amber,
-                              size: 18,
-                            ),
-                        ],
+                      CircleAvatar(
+                        backgroundImage: NetworkImage(
+                          widget.email["avatar"] ??
+                              "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
+                        ),
+                        radius: 20,
                       ),
-                      if (widget.email["accountName"] != null && widget.email["provider"] != null) ...{
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4.0),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '${widget.email["accountName"]} (${widget.email["provider"]})',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.blue[800],
-                                    fontWeight: FontWeight.w500,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    widget.email["name"] ?? "Unknown",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
                                   ),
                                 ),
+                                if (_isVip)
+                                  const Icon(
+                                    Icons.star,
+                                    color: Colors.amber,
+                                    size: 18,
+                                  ),
+                              ],
+                            ),
+                            if (widget.email["accountName"] != null &&
+                                widget.email["provider"] != null) ...{
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4.0),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '${widget.email["accountName"]} (${widget.email["provider"]})',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.blue[800],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ],
-                          ),
+                            },
+                            Text(
+                              senderEmail,
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
-                      },
+                      ),
                       Text(
-                        senderEmail,
+                        formatEmailDate(widget.email["time"] ?? ""),
                         style: TextStyle(color: Colors.grey[600], fontSize: 14),
                       ),
                     ],
                   ),
-                ),
-                Text(
-                  formatEmailDate(widget.email["time"] ?? ""),
-                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 16),
-            Text(
-              widget.email["snippet"] ?? "No content",
-              style: const TextStyle(fontSize: 16, height: 1.5),
-            ),
-            if (widget.email["body"] != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16.0),
-                child: Text(
-                  widget.email["body"],
-                  style: const TextStyle(fontSize: 16, height: 1.5),
-                ),
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  _buildEmailContent(),
+                ],
               ),
+            ),
           ],
         ),
       ),
@@ -303,6 +330,74 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     );
   }
 
+  // Update the _buildEmailContent method
+
+  Widget _buildEmailContent() {
+    // Check if there's any content
+    final hasAttachments =
+        (widget.email['attachments'] as List<dynamic>?)?.isNotEmpty == true;
+
+    // First check if we have HTML content
+    if (widget.email['htmlBody'] != null &&
+        widget.email['htmlBody'].toString().isNotEmpty) {
+      print("Using HTML viewer for email content");
+
+      // Fix #1: Replace SizedBox with Container + SingleChildScrollView combination
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Using SimpleHtmlViewer with dynamic height adjustment
+          SimpleHtmlViewer(htmlContent: widget.email['htmlBody']),
+          // Still show attachments after HTML content
+          if (hasAttachments) _buildAttachments(),
+        ],
+      );
+    }
+    // Then check for plain text
+    else if (widget.email['plainTextBody'] != null &&
+        widget.email['plainTextBody'].toString().isNotEmpty) {
+      print("Using plain text for email content");
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Fix #5: Use SelectableText instead of Text to allow copying
+          SelectableText(
+            widget.email['plainTextBody'],
+            style: const TextStyle(fontSize: 16, height: 1.5),
+          ),
+          if (hasAttachments) _buildAttachments(),
+        ],
+      );
+    }
+    // Finally fall back to snippet
+    else if (widget.email['snippet'] != null &&
+        widget.email['snippet'].toString().isNotEmpty) {
+      print("Using snippet for email content");
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.email['snippet'],
+            style: const TextStyle(fontSize: 16, height: 1.5),
+          ),
+          if (hasAttachments) _buildAttachments(),
+        ],
+      );
+    }
+    // If no content but has attachments, just show attachments
+    else if (hasAttachments) {
+      return _buildAttachments();
+    }
+
+    // No content and no attachments
+    return const Center(
+      child: Text(
+        'No content available',
+        style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+      ),
+    );
+  }
+
   void _showEmailOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -345,6 +440,75 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
               ),
             ],
           ),
+    );
+  }
+
+  Widget _buildAttachments() {
+    final List<dynamic> attachments =
+        widget.email['attachments'] as List<dynamic>? ?? [];
+
+    if (attachments.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Convert the attachment data to EmailAttachment objects
+    final emailAttachments =
+        attachments
+            .map((attachment) => _convertToEmailAttachment(attachment))
+            .toList();
+
+    // Add the requested header section
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        const Divider(),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
+          child: Row(
+            children: [
+              const Icon(Icons.attach_file, size: 18, color: Colors.blueGrey),
+              const SizedBox(width: 8),
+              Text(
+                'Attachments (${attachments.length})',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  color: Colors.blueGrey,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Use the reusable AttachmentGrid component
+        AttachmentGrid(
+          attachments: emailAttachments,
+          onAttachmentTap: (attachment) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Opening ${attachment.name}...')),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // Optimize the attachment conversion by removing redundant checks
+  EmailAttachment _convertToEmailAttachment(Map<String, dynamic> attachment) {
+    final email = widget.email;
+
+    return EmailAttachment(
+      id: attachment['id'] ?? '',
+      name: attachment['filename'] ?? 'Unknown',
+      contentType: attachment['mimeType'] ?? 'application/octet-stream',
+      size: attachment['size'] ?? 0,
+      downloadUrl: attachment['downloadUrl'] ?? '',
+      emailId: email['id'] ?? '',
+      emailSubject: email['message'] ?? '',
+      senderName: email['name'] ?? '',
+      senderEmail: email['from'] ?? '',
+      date: DateTime.tryParse(email['time'] ?? '') ?? DateTime.now(),
+      accountId: email['accountId'] ?? '',
     );
   }
 }
