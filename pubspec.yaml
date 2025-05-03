@@ -55,6 +55,7 @@ dependencies:
   # Add these packages instead
   path: ^1.8.3
   marquee: ^2.2.3
+  webview_flutter: ^4.2.0
   
 
 dev_dependencies:

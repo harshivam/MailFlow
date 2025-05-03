@@ -5,6 +5,9 @@ import 'package:mail_merge/login/login_page.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:mail_merge/user/repository/account_repository.dart';
 
+// Add this global navigator key
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() {
   runApp(const MyApp());
 }
@@ -15,11 +18,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Mail Flow',
-      debugShowCheckedModeBanner: false, // Remove debug banner
+      navigatorKey: navigatorKey, // Make sure this is added
+      title: 'MailFlow',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
       ),
       home: const AuthCheckScreen(),
     );
