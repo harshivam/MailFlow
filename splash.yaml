@@ -1,9 +1,14 @@
 flutter_native_splash:
   color: "#ffffff"
-  image: assets\images\email.png
-
+  image: assets/images/email.png
   android_12:
-   color: "#ffffff"
-   image: assets\images\email.png
-
+    image: assets/images/email.png
+    icon_background_color: "#ffffff"
+    color: "#ffffff"
+  android: true
+  ios: true
   web: false
+  
+  # Image positioning
+  android_gravity: center
+  ios_content_mode: scaleAspectFit
