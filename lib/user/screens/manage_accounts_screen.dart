@@ -119,7 +119,10 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
           elevation: 0, // Remove shadow
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.grey[300]!, width: 0.5), // Add thin light grey outline
+            side: BorderSide(
+              color: Colors.grey[300]!,
+              width: 0.5,
+            ), // Add thin light grey outline
           ),
           child: ListTile(
             leading: CircleAvatar(
@@ -172,12 +175,12 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                       await _authService.setDefaultAccount(account.id);
                       _loadAccounts();
                     },
-                    child: const Text('Set Default'),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: const Size(60, 30),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
+                    child: const Text('Set Default'),
                   ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.red),

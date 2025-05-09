@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:aad_oauth/aad_oauth.dart';
 import 'package:aad_oauth/model/config.dart';
+import 'package:mail_merge/main.dart'; // Add this import
 
 class OutlookAuthService implements EmailAuthService {
   final String clientId = '7d5e7647-1194-4da1-b42b-23870b41bea6';
@@ -23,7 +24,9 @@ class OutlookAuthService implements EmailAuthService {
       scope:
           'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send offline_access User.Read',
       redirectUri: redirectUri,
-      navigatorKey: GlobalKey<NavigatorState>(),
+      navigatorKey: navigatorKey, // Use the global navigator key
+      loader: const Center(child: CircularProgressIndicator()),
+      webUseRedirect: true,
     );
     oauth = AadOAuth(config);
   }
@@ -31,10 +34,21 @@ class OutlookAuthService implements EmailAuthService {
   @override
   Future<EmailAccount?> signIn(BuildContext context) async {
     try {
+      print('Starting Outlook sign-in process...'); // Debug log
+
+      if (!context.mounted) {
+        print('Context is not mounted'); // Debug log
+        return null;
+      }
+
+      print('Initiating OAuth login...'); // Debug log
       await oauth.login();
+
+      print('OAuth login completed, getting access token...'); // Debug log
       final accessToken = await oauth.getAccessToken();
 
       if (accessToken != null) {
+        print('Access token received, fetching user info...'); // Debug log
         final userInfo = await _getUserInfo(accessToken);
 
         if (userInfo != null) {
@@ -56,13 +70,15 @@ class OutlookAuthService implements EmailAuthService {
 
           return account;
         }
+      } else {
+        print('No access token received'); // Debug log
       }
     } catch (e) {
-      print('Outlook sign in error: $e');
+      print('Outlook sign in error: $e'); // More detailed error logging
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error signing in: $e')));
+        ).showSnackBar(SnackBar(content: Text('Outlook sign-in error: $e')));
       }
     }
     return null;

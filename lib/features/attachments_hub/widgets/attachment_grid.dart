@@ -9,12 +9,12 @@ class AttachmentGrid extends StatelessWidget {
   final String title;
 
   const AttachmentGrid({
-    Key? key,
+    super.key,
     required this.attachments,
     this.onAttachmentTap,
     this.crossAxisCount = 2,
     this.title = 'Attachments',
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +23,6 @@ class AttachmentGrid extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),

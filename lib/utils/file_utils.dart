@@ -45,7 +45,9 @@ class FileUtils {
         // Fix URL-safe base64 encoding
         data = data.replaceAll('-', '+').replaceAll('_', '/');
         // Add padding if needed
-        while (data.length % 4 != 0) data += '=';
+        while (data.length % 4 != 0) {
+          data += '=';
+        }
       }
 
       final bytes = base64Decode(data);

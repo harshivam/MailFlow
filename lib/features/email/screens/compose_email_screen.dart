@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/features/email/services/send_emails.dart';
-import 'package:mail_merge/user/authentication/google_sign_in.dart';
 
 class ComposeEmailScreen extends StatefulWidget {
   final String? recipientEmail;

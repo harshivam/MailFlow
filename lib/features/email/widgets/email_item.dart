@@ -31,7 +31,10 @@ class EmailItem extends StatelessWidget {
       elevation: 0, // Remove shadow
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey[300]!, width: 0.5), // Add thin light grey outline
+        side: BorderSide(
+          color: Colors.grey[300]!,
+          width: 0.5,
+        ), // Add thin light grey outline
       ),
       margin: const EdgeInsets.symmetric(vertical: 6.0),
       child: InkWell(
@@ -90,9 +93,14 @@ class EmailItem extends StatelessWidget {
                           const SizedBox(height: 2),
                           // Provider badge - shows account and service info
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: _getProviderColor(provider!).withOpacity(0.1),
+                              color: _getProviderColor(
+                                provider,
+                              ).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -135,7 +143,7 @@ class EmailItem extends StatelessWidget {
       ),
     );
   }
-  
+
   // Helper method to get colors based on email provider
   Color _getProviderColor(String provider) {
     switch (provider.toLowerCase()) {

@@ -16,28 +16,39 @@ class AttachmentItem extends StatelessWidget {
   final EmailAttachment attachment;
   final Function(EmailAttachment)? onViewDetails;
 
-  const AttachmentItem({Key? key, required this.attachment, this.onViewDetails})
-    : super(key: key);
+  const AttachmentItem({
+    super.key,
+    required this.attachment,
+    this.onViewDetails,
+  });
 
   // Consolidate duplicate file type handling
   Map<String, dynamic> _getFileTypeProperties(String contentType) {
-    if (contentType.contains('image'))
+    if (contentType.contains('image')) {
       return {'color': Colors.lightBlue, 'icon': Icons.image};
-    if (contentType.contains('pdf'))
+    }
+    if (contentType.contains('pdf')) {
       return {'color': Colors.red, 'icon': Icons.picture_as_pdf};
-    if (contentType.contains('word') || contentType.contains('document'))
+    }
+    if (contentType.contains('word') || contentType.contains('document')) {
       return {'color': Colors.blue, 'icon': Icons.description};
-    if (contentType.contains('excel') || contentType.contains('spreadsheet'))
+    }
+    if (contentType.contains('excel') || contentType.contains('spreadsheet')) {
       return {'color': Colors.green, 'icon': Icons.table_chart};
+    }
     if (contentType.contains('presentation') ||
-        contentType.contains('powerpoint'))
+        contentType.contains('powerpoint')) {
       return {'color': Colors.orange, 'icon': Icons.slideshow};
-    if (contentType.contains('zip') || contentType.contains('rar'))
+    }
+    if (contentType.contains('zip') || contentType.contains('rar')) {
       return {'color': Colors.purple, 'icon': Icons.folder_zip};
-    if (contentType.contains('audio'))
+    }
+    if (contentType.contains('audio')) {
       return {'color': Colors.amber, 'icon': Icons.audiotrack};
-    if (contentType.contains('video'))
+    }
+    if (contentType.contains('video')) {
       return {'color': Colors.pink, 'icon': Icons.movie};
+    }
 
     // Default
     return {'color': Colors.grey, 'icon': Icons.insert_drive_file};
@@ -111,7 +122,7 @@ class AttachmentItem extends StatelessWidget {
               const SizedBox(height: 12),
 
               // File name - using Expanded to prevent overflow
-              Container(
+              SizedBox(
                 height: 40, // Fixed height to accommodate two lines of text
                 child: Text(
                   attachment.name,
@@ -139,7 +150,7 @@ class AttachmentItem extends StatelessWidget {
               const SizedBox(height: 6),
 
               // From email text
-              Container(
+              SizedBox(
                 height: 17, // Give it a fixed height for the marquee
                 child:
                     attachment.senderEmail.length > 15
@@ -346,17 +357,10 @@ class AttachmentItem extends StatelessWidget {
       if (Platform.isAndroid) {
         // Try to use the app's external storage first (more reliable on newer Android)
         targetDir = await getExternalStorageDirectory();
-        if (targetDir == null) {
-          // Fall back to app documents directory
-          targetDir = await getApplicationDocumentsDirectory();
-        }
+        targetDir ??= await getApplicationDocumentsDirectory();
       } else {
         // On iOS use the documents directory
         targetDir = await getApplicationDocumentsDirectory();
-      }
-
-      if (targetDir == null) {
-        throw Exception('Could not access storage directory');
       }
 
       // Get a fresh token for this account
@@ -385,21 +389,13 @@ class AttachmentItem extends StatelessWidget {
           }
 
           // Fall back to app-specific directory
-          if (downloadsDir == null) {
-            downloadsDir = await getExternalStorageDirectory();
-          }
+          downloadsDir ??= await getExternalStorageDirectory();
 
           // Last resort
-          if (downloadsDir == null) {
-            downloadsDir = await getApplicationDocumentsDirectory();
-          }
+          downloadsDir ??= await getApplicationDocumentsDirectory();
         } else {
           // On iOS use the documents directory
           downloadsDir = await getApplicationDocumentsDirectory();
-        }
-
-        if (downloadsDir == null) {
-          throw Exception('Could not access downloads directory');
         }
 
         // Ensure the filename has the correct extension

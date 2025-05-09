@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/navigation/home_navigation.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
-import 'package:mail_merge/login/login_page.dart';
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:mail_merge/user/repository/account_repository.dart';
 
-// Add this global navigator key
+// Create a global NavigatorKey that will be shared across the app
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized(); // Add this line
   runApp(const MyApp());
 }
 
@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: navigatorKey, // Make sure this is added
+      navigatorKey: navigatorKey,
       title: 'MailFlow',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),

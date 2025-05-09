@@ -8,11 +8,11 @@ class SubscriptionItem extends StatelessWidget {
   final Function(SubscriptionEmail) onUnsubscribe;
 
   const SubscriptionItem({
-    Key? key,
+    super.key,
     required this.subscription,
     required this.onToggleSelect,
     required this.onUnsubscribe,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

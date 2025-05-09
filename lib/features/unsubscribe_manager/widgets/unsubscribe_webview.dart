@@ -8,10 +8,10 @@ class UnsubscribeWebView extends StatefulWidget {
   final bool closeOnSuccess;
 
   const UnsubscribeWebView({
-    Key? key,
+    super.key,
     required this.subscription,
     this.closeOnSuccess = true,
-  }) : super(key: key);
+  });
 
   @override
   State<UnsubscribeWebView> createState() => _UnsubscribeWebViewState();

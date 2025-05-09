@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class SubscriptionEmail {
   final String id;
   final String sender;

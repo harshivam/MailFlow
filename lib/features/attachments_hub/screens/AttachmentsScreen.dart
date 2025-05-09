@@ -13,7 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AttachmentsScreen extends StatefulWidget {
   final String? accountId;
 
-  const AttachmentsScreen({Key? key, this.accountId}) : super(key: key);
+  const AttachmentsScreen({super.key, this.accountId});
 
   @override
   State<AttachmentsScreen> createState() => _AttachmentsScreenState();
@@ -532,7 +532,7 @@ class _AttachmentsScreenState extends State<AttachmentsScreen>
               AttachmentGrid(
                 attachments: _attachments,
                 crossAxisCount: 2,
-                
+
                 onAttachmentTap: (attachment) {
                   print('View details for ${attachment.name}');
                   // Your existing attachment tap logic

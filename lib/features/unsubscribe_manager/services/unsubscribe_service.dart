@@ -23,7 +23,7 @@ class UnsubscribeService {
   final AuthService _authService = AuthService();
 
   // Track subscription emails - Add this line to fix the error
-  List<SubscriptionEmail> _subscriptions = [];
+  final List<SubscriptionEmail> _subscriptions = [];
 
   // Throttling control
   DateTime _lastApiRequest = DateTime.now().subtract(Duration(seconds: 2));

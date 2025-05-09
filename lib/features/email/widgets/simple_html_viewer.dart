@@ -7,10 +7,10 @@ class SimpleHtmlViewer extends StatefulWidget {
   final double initialHeight; // Allow overriding default height
 
   const SimpleHtmlViewer({
-    Key? key,
+    super.key,
     required this.htmlContent,
     this.initialHeight = 1.0, // Start with minimal height
-  }) : super(key: key);
+  });
 
   @override
   State<SimpleHtmlViewer> createState() => _SimpleHtmlViewerState();
@@ -20,7 +20,7 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
   late final WebViewController _controller;
   bool _isLoading = true;
   final HtmlUnescape _unescape = HtmlUnescape();
-  double _webViewHeight = 1; // Start with minimal height
+  final double _webViewHeight = 1; // Start with minimal height
   late final ValueNotifier<double> _heightNotifier;
 
   @override

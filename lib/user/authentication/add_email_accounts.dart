@@ -1,9 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/home.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
+import 'package:mail_merge/user/models/email_account.dart';
+import 'package:mail_merge/user/services/auth_service.dart';
+import 'package:mail_merge/user/services/providers/outlook_auth_service.dart'; // Add this import
 
 class AddEmailAccountsPage extends StatelessWidget {
   const AddEmailAccountsPage({super.key});
+
+  // Add this method for Outlook sign-in
+  Future<void> signInWithOutlook(BuildContext context) async {
+    final authService = OutlookAuthService();
+    try {
+      final account = await authService.signIn(
+        context,
+      ); // Use signIn instead of signInWithProvider
+
+      if (account != null && context.mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const Home()),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing in with Outlook: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,11 +82,13 @@ class AddEmailAccountsPage extends StatelessWidget {
               },
             ),
             const Divider(),
+            // Update only the Outlook option, leaving Gmail as is
             _buildEmailOption(
               context,
               icon: Icons.email,
               color: Colors.blue,
               label: "Outlook",
+              onTap: () => signInWithOutlook(context),
             ),
             const Divider(),
             _buildEmailOption(
@@ -82,7 +110,7 @@ class AddEmailAccountsPage extends StatelessWidget {
       // Add a persistent footer note as an additional reminder
       persistentFooterButtons: [
         Padding(
-          padding: const EdgeInsets.only(bottom :12.0),
+          padding: const EdgeInsets.only(bottom: 12.0),
           child: Row(
             children: [
               Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),

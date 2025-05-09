@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:mail_merge/features/email/services/email_service.dart';
 import 'package:mail_merge/features/email/widgets/simple_html_viewer.dart';
-import 'package:mail_merge/user/repository/account_repository.dart';
 import 'package:mail_merge/utils/date_formatter.dart';
 import 'package:mail_merge/features/email/screens/compose_email_screen.dart';
 import 'package:mail_merge/features/vip_inbox/services/contact_service.dart';
 import 'package:mail_merge/features/vip_inbox/models/contact.dart';
-import 'package:mail_merge/features/email/widgets/html_email_viewer.dart';
 import 'package:mail_merge/features/attachments_hub/models/attachment.dart';
-import 'package:mail_merge/features/attachments_hub/widgets/attachment_item.dart';
 import 'package:mail_merge/features/attachments_hub/widgets/attachment_grid.dart';
 
 class EmailDetailScreen extends StatefulWidget {

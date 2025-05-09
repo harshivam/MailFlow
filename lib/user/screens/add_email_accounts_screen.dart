@@ -120,24 +120,18 @@ class AddEmailAccountsScreen extends StatelessWidget {
               label: "Outlook",
               onTap: () async {
                 try {
-                  // Show loading indicator
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (BuildContext context) {
-                      return const Center(child: CircularProgressIndicator());
-                    },
+                  // Show a snackbar to indicate the process is starting
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Initiating Outlook sign-in...'),
+                      duration: Duration(seconds: 1),
+                    ),
                   );
 
                   final account = await authService.signInWithProvider(
                     AccountProvider.outlook,
                     context,
                   );
-
-                  // Close loading dialog
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
-                  }
 
                   if (account != null && context.mounted) {
                     // Show success message before navigating
@@ -153,15 +147,22 @@ class AddEmailAccountsScreen extends StatelessWidget {
                         builder: (context) => const HomeNavigation(),
                       ),
                     );
+                  } else if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Failed to add Outlook account'),
+                      ),
+                    );
                   }
                 } catch (e) {
-                  // Close loading dialog if there's an error
                   if (context.mounted) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error signing in to Outlook: $e'),
+                      ),
+                    );
                   }
+                  print('Outlook sign-in error: $e'); // For debugging
                 }
               },
             ),

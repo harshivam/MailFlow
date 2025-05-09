@@ -282,7 +282,7 @@ class EmailService {
       }
     } catch (e) {
       print('Error fetching message details: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -494,10 +494,12 @@ class EmailService {
         final newPath = List<String>.from(path)..add('message/rfc822');
         for (var subpart in part['parts'] as List) {
           final subResult = _extractContent(subpart, newPath);
-          if (subResult['html']!.isNotEmpty)
+          if (subResult['html']!.isNotEmpty) {
             result['html'] = subResult['html']!;
-          if (subResult['plain']!.isNotEmpty)
+          }
+          if (subResult['plain']!.isNotEmpty) {
             result['plain'] = subResult['plain']!;
+          }
         }
       } else if (part['body']['data'] != null) {
         result['plain'] = _decodeBase64String(part['body']['data']);

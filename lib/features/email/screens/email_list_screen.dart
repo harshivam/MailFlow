@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mail_merge/features/email/widgets/email_item.dart';
 import 'package:mail_merge/features/email/widgets/email_shimmer.dart';
 import 'package:mail_merge/features/email/services/unified_email_service.dart';
-import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';

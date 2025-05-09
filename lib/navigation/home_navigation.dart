@@ -39,7 +39,7 @@ class _HomeNavigationState extends State<HomeNavigation>
   bool _isSyncingAccount = false;
 
   // Add a flag for showing shimmer in inbox screen
-  bool _showInboxShimmer = false;
+  final bool _showInboxShimmer = false;
 
   // Add new bottom nav screens list as a field
   late List<Widget> _bottomNavScreens;
@@ -296,16 +296,16 @@ class _HomeNavigationState extends State<HomeNavigation>
       // Inbox screen
       _isUnifiedInboxEnabled
           ? EmailListScreen(
-              key: emailListKey,
-              accessToken: _accessToken,
-              forceLoading: forceShimmer,
-            )
+            key: emailListKey,
+            accessToken: _accessToken,
+            forceLoading: forceShimmer,
+          )
           : EmailListScreen(
-              key: emailListKey,
-              accessToken: _accessToken,
-              accountId: _selectedAccountId,
-              forceLoading: forceShimmer,
-            ),
+            key: emailListKey,
+            accessToken: _accessToken,
+            accountId: _selectedAccountId,
+            forceLoading: forceShimmer,
+          ),
 
       // VIP screen
       _isUnifiedInboxEnabled
@@ -367,7 +367,9 @@ class _HomeNavigationState extends State<HomeNavigation>
           });
 
           // Check if the key is working
-          print('DEBUG: emailListKey.currentState is ${emailListKey.currentState != null ? 'NOT NULL' : 'NULL'}');
+          print(
+            'DEBUG: emailListKey.currentState is ${emailListKey.currentState != null ? 'NOT NULL' : 'NULL'}',
+          );
 
           // Apply the filter
           if (emailListKey.currentState != null) {

@@ -9,7 +9,7 @@ import 'dart:async';
 class UnsubscribeScreen extends StatefulWidget {
   final String? accountId;
 
-  const UnsubscribeScreen({Key? key, this.accountId}) : super(key: key);
+  const UnsubscribeScreen({super.key, this.accountId});
 
   @override
   _UnsubscribeScreenState createState() => _UnsubscribeScreenState();
@@ -422,7 +422,6 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
         // Header with select all
         _buildStatusHeader(),
         _buildInfoBanner(), // Add this line
-        
         // List of subscriptions
         Expanded(
           child: RefreshIndicator(

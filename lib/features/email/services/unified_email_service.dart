@@ -1,9 +1,6 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:mail_merge/features/email/services/email_service.dart';
 import 'package:mail_merge/features/email/services/providers/imap_email_service.dart';
 import 'package:mail_merge/features/email/services/providers/outlook_email_service.dart';
-import 'package:mail_merge/features/email/services/unified_email_service.dart';
 import 'package:mail_merge/user/models/email_account.dart';
 import 'package:mail_merge/user/repository/account_repository.dart';
 import 'package:mail_merge/features/attachments_hub/models/attachment.dart';

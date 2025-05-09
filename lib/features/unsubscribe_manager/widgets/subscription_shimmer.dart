@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
 class SubscriptionShimmerList extends StatelessWidget {
-  const SubscriptionShimmerList({Key? key}) : super(key: key);
+  const SubscriptionShimmerList({super.key});
 
   @override
   Widget build(BuildContext context) {

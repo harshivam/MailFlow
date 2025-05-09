@@ -4,7 +4,7 @@ import 'package:mail_merge/features/filters/models/custom_filter.dart';
 class AddFilterDialog extends StatefulWidget {
   final CustomFilter? existingFilter;
 
-  const AddFilterDialog({Key? key, this.existingFilter}) : super(key: key);
+  const AddFilterDialog({super.key, this.existingFilter});
 
   @override
   State<AddFilterDialog> createState() => _AddFilterDialogState();
@@ -180,7 +180,7 @@ class _AddFilterDialogState extends State<AddFilterDialog> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    
+
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _keywordController,
@@ -216,7 +216,7 @@ class _AddFilterDialogState extends State<AddFilterDialog> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Container(
+                    SizedBox(
                       height: 50,
                       child: ListView(
                         scrollDirection: Axis.horizontal,
@@ -277,7 +277,7 @@ class _AddFilterDialogState extends State<AddFilterDialog> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Container(
+                    SizedBox(
                       height: 100,
                       child: GridView.builder(
                         gridDelegate:
@@ -330,7 +330,7 @@ class _AddFilterDialogState extends State<AddFilterDialog> {
 
             // Actions
             Padding(
-              padding: const EdgeInsets.fromLTRB(24,0, 40, 24),
+              padding: const EdgeInsets.fromLTRB(24, 0, 40, 24),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [

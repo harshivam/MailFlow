@@ -41,15 +41,19 @@ class EmailAttachment {
   IconData get icon {
     if (contentType.contains('image')) return Icons.image;
     if (contentType.contains('pdf')) return Icons.picture_as_pdf;
-    if (contentType.contains('word') || contentType.contains('document'))
+    if (contentType.contains('word') || contentType.contains('document')) {
       return Icons.description;
-    if (contentType.contains('excel') || contentType.contains('spreadsheet'))
+    }
+    if (contentType.contains('excel') || contentType.contains('spreadsheet')) {
       return Icons.table_chart;
+    }
     if (contentType.contains('presentation') ||
-        contentType.contains('powerpoint'))
+        contentType.contains('powerpoint')) {
       return Icons.slideshow;
-    if (contentType.contains('zip') || contentType.contains('compressed'))
+    }
+    if (contentType.contains('zip') || contentType.contains('compressed')) {
       return Icons.folder_zip;
+    }
     if (contentType.contains('audio')) return Icons.audiotrack;
     if (contentType.contains('video')) return Icons.video_file;
     return Icons.attach_file;

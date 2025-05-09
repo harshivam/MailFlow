@@ -11,8 +11,7 @@ import 'package:share_plus/share_plus.dart';
 class AttachmentViewerScreen extends StatefulWidget {
   final EmailAttachment attachment;
 
-  const AttachmentViewerScreen({Key? key, required this.attachment})
-    : super(key: key);
+  const AttachmentViewerScreen({super.key, required this.attachment});
 
   @override
   State<AttachmentViewerScreen> createState() => _AttachmentViewerScreenState();

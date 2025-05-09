@@ -150,7 +150,7 @@ class _AppSidebarState extends State<AppSidebar> {
 
           // Add Custom Filters Section here
           _buildFiltersSection(context),
-          
+
           const Divider(),
 
           // Settings item
@@ -293,7 +293,6 @@ class _AppSidebarState extends State<AppSidebar> {
         ),
 
         // Divider if there are any filters
-        
 
         // Filters list
         if (_isLoadingFilters)
@@ -304,41 +303,36 @@ class _AppSidebarState extends State<AppSidebar> {
             ),
           )
         else
-          ..._filters
-              .map(
-                (filter) => Padding(
-                  padding: const EdgeInsets.fromLTRB(29,0,8,0),
-                  child: ListTile(
-                    leading: Icon(filter.icon, color: filter.color),
-                    title: Text(filter.name),
-                    onTap: () {
-                      Navigator.of(context).pop(); // Close drawer
-                      widget.onFilterSelected(filter.keyword);
-                    },
-                    trailing: PopupMenuButton<String>(
-                      itemBuilder:
-                          (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Text('Edit'),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Delete'),
-                            ),
-                          ],
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          _showEditFilterDialog(filter);
-                        } else if (value == 'delete') {
-                          _deleteFilter(filter);
-                        }
-                      },
-                    ),
-                  ),
+          ..._filters.map(
+            (filter) => Padding(
+              padding: const EdgeInsets.fromLTRB(29, 0, 8, 0),
+              child: ListTile(
+                leading: Icon(filter.icon, color: filter.color),
+                title: Text(filter.name),
+                onTap: () {
+                  Navigator.of(context).pop(); // Close drawer
+                  widget.onFilterSelected(filter.keyword);
+                },
+                trailing: PopupMenuButton<String>(
+                  itemBuilder:
+                      (context) => [
+                        const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Delete'),
+                        ),
+                      ],
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _showEditFilterDialog(filter);
+                    } else if (value == 'delete') {
+                      _deleteFilter(filter);
+                    }
+                  },
                 ),
-              )
-              .toList(),
+              ),
+            ),
+          ),
       ],
     );
   }

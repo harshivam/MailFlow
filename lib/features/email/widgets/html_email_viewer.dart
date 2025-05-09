@@ -5,8 +5,7 @@ import 'dart:convert';
 class HtmlEmailViewer extends StatefulWidget {
   final String htmlContent;
 
-  const HtmlEmailViewer({Key? key, required this.htmlContent})
-    : super(key: key);
+  const HtmlEmailViewer({super.key, required this.htmlContent});
 
   @override
   State<HtmlEmailViewer> createState() => _HtmlEmailViewerState();
