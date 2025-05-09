@@ -30,7 +30,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # Add this line
   url_launcher: ^6.2.5
   cupertino_icons: ^1.0.8
   google_sign_in: ^6.1.4
@@ -44,20 +43,18 @@ dependencies:
   shimmer: ^2.0.0
   shared_preferences: ^2.2.0
   uuid: ^4.2.1
-  flutter_secure_storage: ^8.0.0
+  flutter_secure_storage: ^9.2.4
   event_bus: ^2.0.0
-  path_provider: ^2.1.1  # For accessing device storage
-  open_file: ^3.3.2  # For opening files with system apps
+  path_provider: ^2.1.1
+  open_file: ^3.3.2
   share_plus: ^11.0.0
-  flutter_pdfview: ^1.2.0  # For displaying PDF files
-  # Remove or comment out permission_handler
-  # permission_handler: 9.0.2
-  # Add these packages instead
+  flutter_pdfview: ^1.2.0
   path: ^1.8.3
   marquee: ^2.2.3
   webview_flutter: ^4.2.0
   html_unescape: ^2.0.0
-  
+  msix: ^3.16.7
+  aad_oauth: ^1.0.0
 
 dev_dependencies:
   flutter_test:

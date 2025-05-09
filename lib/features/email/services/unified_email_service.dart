@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:mail_merge/features/email/services/email_service.dart';
 import 'package:mail_merge/features/email/services/providers/imap_email_service.dart';
+import 'package:mail_merge/features/email/services/providers/outlook_email_service.dart';
 import 'package:mail_merge/features/email/services/unified_email_service.dart';
 import 'package:mail_merge/user/models/email_account.dart';
 import 'package:mail_merge/user/repository/account_repository.dart';
@@ -152,6 +153,7 @@ class UnifiedEmailService {
       case AccountProvider.gmail:
         return EmailService(account.accessToken);
       case AccountProvider.outlook:
+        return OutlookEmailService(account);
       case AccountProvider.rediffmail:
         return ImapEmailService(account);
     }
@@ -166,6 +168,8 @@ class UnifiedEmailService {
       if (service is EmailService) {
         final result = await service.fetchEmails(maxResults: maxResults);
         return result.emails;
+      } else if (service is OutlookEmailService) {
+        return await service.fetchEmails(maxResults: maxResults);
       } else if (service is ImapEmailService) {
         return await service.fetchEmails(maxResults: maxResults);
       }
@@ -243,6 +247,12 @@ class UnifiedEmailService {
     try {
       if (service is EmailService) {
         // Gmail uses query parameter
+        final query = 'from:${contactEmail.toLowerCase()}';
+        return await service.fetchEmailsWithQuery(
+          query,
+          maxResults: maxResults,
+        );
+      } else if (service is OutlookEmailService) {
         final query = 'from:${contactEmail.toLowerCase()}';
         return await service.fetchEmailsWithQuery(
           query,

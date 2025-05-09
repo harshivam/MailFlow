@@ -9,7 +9,7 @@ class AddEmailAccountsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -49,7 +49,7 @@ class AddEmailAccountsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            
+
             // Gmail option
             _buildEmailOption(
               context,
@@ -63,28 +63,28 @@ class AddEmailAccountsScreen extends StatelessWidget {
                     context: context,
                     barrierDismissible: false,
                     builder: (BuildContext context) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
+                      return const Center(child: CircularProgressIndicator());
                     },
                   );
-                  
+
                   final account = await authService.signInWithProvider(
                     AccountProvider.gmail,
                     context,
                   );
-                  
+
                   // Close loading dialog
                   if (context.mounted) {
                     Navigator.of(context).pop();
                   }
-                  
+
                   if (account != null && context.mounted) {
                     // Show success message before navigating
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Account added successfully')),
+                      const SnackBar(
+                        content: Text('Account added successfully'),
+                      ),
                     );
-                    
+
                     // Navigate to home screen
                     Navigator.pushReplacement(
                       context,
@@ -102,16 +102,16 @@ class AddEmailAccountsScreen extends StatelessWidget {
                   // Close loading dialog if there's an error
                   if (context.mounted) {
                     Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('Error: $e')));
                   }
                 }
               },
             ),
-            
+
             const Divider(),
-            
+
             // Outlook option
             _buildEmailOption(
               context,
@@ -119,24 +119,55 @@ class AddEmailAccountsScreen extends StatelessWidget {
               color: Colors.blue,
               label: "Outlook",
               onTap: () async {
-                final account = await authService.signInWithProvider(
-                  AccountProvider.outlook,
-                  context,
-                );
-                
-                if (account != null && context.mounted) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const HomeNavigation(),
-                    ),
+                try {
+                  // Show loading indicator
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (BuildContext context) {
+                      return const Center(child: CircularProgressIndicator());
+                    },
                   );
+
+                  final account = await authService.signInWithProvider(
+                    AccountProvider.outlook,
+                    context,
+                  );
+
+                  // Close loading dialog
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+
+                  if (account != null && context.mounted) {
+                    // Show success message before navigating
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Outlook account added successfully'),
+                      ),
+                    );
+
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HomeNavigation(),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  // Close loading dialog if there's an error
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  }
                 }
               },
             ),
-            
+
             const Divider(),
-            
+
             // Rediffmail option
             _buildEmailOption(
               context,
@@ -148,7 +179,7 @@ class AddEmailAccountsScreen extends StatelessWidget {
                   AccountProvider.rediffmail,
                   context,
                 );
-                
+
                 if (account != null && context.mounted) {
                   Navigator.pushReplacement(
                     context,
@@ -162,7 +193,7 @@ class AddEmailAccountsScreen extends StatelessWidget {
           ],
         ),
       ),
-      
+
       // Footer note
       persistentFooterButtons: [
         Padding(
