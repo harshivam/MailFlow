@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/home.dart';
+import 'package:mail_merge/navigation/home_navigation.dart';
 import 'package:mail_merge/user/authentication/google_sign_in.dart';
 import 'package:mail_merge/user/models/email_account.dart';
 import 'package:mail_merge/user/services/auth_service.dart';
-import 'package:mail_merge/user/services/providers/outlook_auth_service.dart'; // Add this import
+import 'package:mail_merge/user/services/providers/outlook_auth_service.dart';
+import 'package:mail_merge/user/repository/account_repository.dart'; // Add this import
 
 class AddEmailAccountsPage extends StatelessWidget {
   const AddEmailAccountsPage({super.key});
@@ -12,18 +14,48 @@ class AddEmailAccountsPage extends StatelessWidget {
   Future<void> signInWithOutlook(BuildContext context) async {
     final authService = OutlookAuthService();
     try {
-      final account = await authService.signIn(
-        context,
-      ); // Use signIn instead of signInWithProvider
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Center(child: CircularProgressIndicator());
+        },
+      );
+
+      final account = await authService.signIn(context);
+
+      // Close loading dialog if it's still shown
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
 
       if (account != null && context.mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const Home()),
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Successfully logged in to Outlook'),
+            duration: Duration(seconds: 2),
+          ),
         );
+
+        // Important: Make sure the account is properly stored before navigation
+        final accountRepo = AccountRepository();
+        await accountRepo.addAccount(account);
+
+        // Navigate to HomeNavigation and remove all previous routes
+        if (context.mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const HomeNavigation()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
+      print('Error in Outlook sign-in: $e');
       if (context.mounted) {
+        // Close loading dialog if there's an error
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error signing in with Outlook: $e')),
         );

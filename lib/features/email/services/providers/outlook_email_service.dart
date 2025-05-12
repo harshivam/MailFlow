@@ -15,7 +15,9 @@ class OutlookEmailService {
     try {
       final url =
           pageToken ??
-          'https://graph.microsoft.com/v1.0/me/messages?\$top=$maxResults&\$orderby=receivedDateTime desc';
+          'https://graph.microsoft.com/v1.0/me/messages?\$top=$maxResults&\$orderby=receivedDateTime desc&\$select=id,subject,bodyPreview,receivedDateTime,from,body,hasAttachments';
+
+      print('Fetching Outlook emails from URL: $url'); // Debug log
 
       final response = await http.get(
         Uri.parse(url),
@@ -25,9 +27,13 @@ class OutlookEmailService {
         },
       );
 
+      print('Outlook API response status: ${response.statusCode}'); // Debug log
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final messages = data['value'] as List;
+
+        print('Retrieved ${messages.length} Outlook messages'); // Debug log
 
         return messages.map((message) {
           final from = message['from']['emailAddress'];
@@ -47,10 +53,12 @@ class OutlookEmailService {
             'accountName': account.displayName,
           };
         }).toList();
+      } else {
+        print('Error response: ${response.body}'); // Debug log
+        return [];
       }
-      return [];
     } catch (e) {
-      print('Error fetching Outlook emails: $e');
+      print('Error fetching Outlook emails: $e'); // Debug log
       return [];
     }
   }

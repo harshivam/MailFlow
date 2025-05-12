@@ -58,11 +58,12 @@ class OutlookAuthService implements EmailAuthService {
             displayName: userInfo['displayName'],
             provider: AccountProvider.outlook,
             accessToken: accessToken,
-            refreshToken: '', // Not needed, handled internally
+            refreshToken: '', // Not needed for Outlook
             tokenExpiry: DateTime.now().add(const Duration(hours: 1)),
             photoUrl: null,
           );
 
+          // Store the access token securely
           await _storage.write(
             key: 'outlook_access_token_${account.id}',
             value: accessToken,
@@ -70,9 +71,8 @@ class OutlookAuthService implements EmailAuthService {
 
           return account;
         }
-      } else {
-        print('No access token received'); // Debug log
       }
+      return null;
     } catch (e) {
       print('Outlook sign in error: $e'); // More detailed error logging
       if (context.mounted) {
@@ -80,8 +80,8 @@ class OutlookAuthService implements EmailAuthService {
           context,
         ).showSnackBar(SnackBar(content: Text('Outlook sign-in error: $e')));
       }
+      return null;
     }
-    return null;
   }
 
   Future<Map<String, dynamic>?> _getUserInfo(String accessToken) async {
