@@ -306,15 +306,62 @@ class AttachmentItem extends StatelessWidget {
           throw Exception('Failed to download: HTTP ${response.statusCode}');
         }
 
-        // Process the Gmail API response (JSON with base64 data)
+        // Process the API response based on provider
         try {
-          final jsonResponse = jsonDecode(response.body);
-          final base64Data = jsonResponse['data'];
-          if (base64Data == null) {
-            throw Exception('Invalid attachment data');
+          // Check if this is from Gmail API (contains base64 data in JSON format)
+          if (response.headers['content-type']?.contains('application/json') ??
+              false) {
+            try {
+              // Try to parse as Gmail JSON response with base64 data
+              final jsonResponse = jsonDecode(response.body);
+              if (jsonResponse.containsKey('data')) {
+                // This is a Gmail attachment
+                final base64Data = jsonResponse['data'];
+                if (base64Data == null) {
+                  throw Exception('Invalid attachment data');
+                }
+                await FileUtils.writeBase64ToFile(base64Data, file.path);
+              } else if (jsonResponse.containsKey('contentBytes')) {
+                // This is an Outlook attachment - Microsoft Graph API uses 'contentBytes' field
+                print('Found Outlook attachment with contentBytes field');
+                final base64Data = jsonResponse['contentBytes'];
+                if (base64Data == null) {
+                  throw Exception('Invalid Outlook attachment data');
+                }
+                await FileUtils.writeBase64ToFile(base64Data, file.path);
+              } else {
+                // Unknown JSON format
+                print(
+                  'JSON response does not contain expected fields, treating as binary',
+                );
+                await file.writeAsBytes(response.bodyBytes);
+              }
+            } catch (e) {
+              print('Error parsing JSON, falling back to binary: $e');
+              // If JSON parsing fails, try writing the response as binary
+              await file.writeAsBytes(response.bodyBytes);
+            }
+          } else {
+            // Direct binary file (typical for Outlook)
+            print(
+              'Content-type: ${response.headers['content-type']}, treating as binary',
+            );
+            await file.writeAsBytes(response.bodyBytes);
           }
 
-          await FileUtils.writeBase64ToFile(base64Data, file.path);
+          // Debug the file after writing
+          if (await file.exists()) {
+            final fileSize = await file.length();
+            print(
+              'File successfully written to ${file.path}, size: $fileSize bytes',
+            );
+
+            // Analyze the first few bytes if it's an image
+            if (attachment.contentType.contains('image/')) {
+              final bytes = await file.readAsBytes();
+              _analyzeImageData(bytes, file.path);
+            }
+          }
         } catch (e) {
           print('Error processing attachment data: $e');
           throw Exception('Invalid attachment format: $e');

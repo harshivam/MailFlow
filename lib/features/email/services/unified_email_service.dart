@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:mail_merge/features/email/services/email_service.dart';
 import 'package:mail_merge/features/email/services/providers/imap_email_service.dart';
 import 'package:mail_merge/user/authentication/outlook_email_service.dart';
@@ -31,106 +32,257 @@ class UnifiedEmailService {
     // List to hold all emails from all accounts
     List<Map<String, dynamic>> allEmails = [];
 
-    // Fetch emails from all accounts in parallel
-    final futures = accounts.map((account) async {
+    // CHANGE #1: Pre-fetch all emails before processing
+    final allRawEmails = <Map<String, dynamic>>[];
+
+    // Fetch emails from all accounts
+    for (var account in accounts) {
       try {
         final service = await _getServiceForAccount(account);
         final emails = await _fetchFromService(service, account, maxResults);
 
-        // Tag emails with account info and normalize dates
-        return emails.map((email) {
+        // Add to raw email list with account info
+        for (var email in emails) {
           email['accountId'] = account.id;
           email['accountName'] = account.displayName;
           email['provider'] = account.provider.displayName;
+          allRawEmails.add(email);
+        }
+      } catch (e) {
+        print('Error fetching from account ${account.email}: $e');
+      }
+    }
 
-          // Consistent date normalization for proper sorting
+    // CHANGE #2: Process all emails consistently
+    for (var email in allRawEmails) {
+      try {
+        // Process date consistently with better normalization
+        DateTime emailDate;
+
+        if (email['time'] != null && email['time'].toString().isNotEmpty) {
           try {
-            if (email['time'] != null && email['time'].isNotEmpty) {
-              // Handle different date formats by converting to DateTime
-              DateTime parsedDate;
-              try {
-                parsedDate = DateTime.parse(email['time']);
-              } catch (_) {
-                // Handle RFC 822/2822 date format that Gmail often uses
-                final regexPattern =
-                    r'(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})';
-                final match = RegExp(
-                  regexPattern,
-                  caseSensitive: false,
+            // Try standard formats first
+            emailDate = DateTime.parse(email['time']);
+
+            // IMPORTANT: Normalize to minute precision to avoid microsecond differences
+            // This ensures emails from different providers with the same "human time"
+            // are treated as equivalent for sorting purposes
+            emailDate = DateTime(
+              emailDate.year,
+              emailDate.month,
+              emailDate.day,
+              emailDate.hour,
+              emailDate.minute,
+            );
+          } catch (_) {
+            try {
+              // Handle Gmail's RFC format
+              final regexPattern =
+                  r'(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})';
+              final match = RegExp(
+                regexPattern,
+                caseSensitive: false,
+              ).firstMatch(email['time']);
+
+              if (match != null) {
+                final day = int.parse(match.group(1)!);
+                final monthStr = match.group(2)!;
+                final year = int.parse(match.group(3)!);
+
+                final months = {
+                  'Jan': 1,
+                  'Feb': 2,
+                  'Mar': 3,
+                  'Apr': 4,
+                  'May': 5,
+                  'Jun': 6,
+                  'Jul': 7,
+                  'Aug': 8,
+                  'Sep': 9,
+                  'Oct': 10,
+                  'Nov': 11,
+                  'Dec': 12,
+                };
+
+                final month = months[monthStr] ?? 1;
+                emailDate = DateTime(year, month, day);
+              } else {
+                // For Outlook dates
+                final outlookRegex = r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})';
+                final outlookMatch = RegExp(
+                  outlookRegex,
                 ).firstMatch(email['time']);
 
-                if (match != null) {
-                  final day = int.parse(match.group(1)!);
-                  final monthStr = match.group(2)!;
-                  final year = int.parse(match.group(3)!);
-
-                  final months = {
-                    'Jan': 1,
-                    'Feb': 2,
-                    'Mar': 3,
-                    'Apr': 4,
-                    'May': 5,
-                    'Jun': 6,
-                    'Jul': 7,
-                    'Aug': 8,
-                    'Sep': 9,
-                    'Oct': 10,
-                    'Nov': 11,
-                    'Dec': 12,
-                  };
-
-                  final month = months[monthStr] ?? 1;
-                  parsedDate = DateTime(year, month, day);
+                if (outlookMatch != null) {
+                  emailDate = DateTime.parse(outlookMatch.group(1)!);
                 } else {
-                  // If all parsing fails, use a random old date with slight variation
-                  // to avoid having multiple emails with exactly the same timestamp
-                  parsedDate = DateTime(
-                    2000,
-                    1,
-                    1,
-                  ).add(Duration(minutes: allEmails.length));
+                  // Last resort
+                  emailDate = DateTime.now().subtract(
+                    Duration(minutes: allEmails.length),
+                  );
                 }
               }
-              email['_dateTime'] = parsedDate;
-            } else {
-              // Use current time with an offset to maintain ordering when no date is available
-              email['_dateTime'] = DateTime.now().subtract(
+            } catch (e) {
+              print('Error parsing date: ${email['time']} - $e');
+              emailDate = DateTime.now().subtract(
                 Duration(minutes: allEmails.length),
               );
             }
-          } catch (e) {
-            print('Error parsing date: ${email['time']} - $e');
-            // Fallback to current time with a slight variation
-            email['_dateTime'] = DateTime.now().subtract(
-              Duration(minutes: allEmails.length),
-            );
           }
+        } else {
+          // No date available
+          emailDate = DateTime.now().subtract(
+            Duration(minutes: allEmails.length),
+          );
+        }
 
-          return email;
-        }).toList();
+        // Store the processed date
+        email['_dateTime'] = emailDate;
+        allEmails.add(email);
       } catch (e) {
-        print('Error fetching from account ${account.email}: $e');
-        return <Map<String, dynamic>>[];
+        print('Error processing email: $e');
+      }
+    }
+
+    // CHANGE #3: Complete rewrite of the sorting algorithm to ensure proper interleaving
+    print('Implementing truly randomized provider distribution strategy...');
+
+    // First, sort all emails by date
+    allEmails.sort((a, b) {
+      final dateA = a['_dateTime'] as DateTime;
+      final dateB = b['_dateTime'] as DateTime;
+      return dateB.compareTo(dateA); // Newest first
+    });
+
+    // Step 1: Split emails by provider
+    Map<String, List<Map<String, dynamic>>> emailsByProvider = {};
+    for (var email in allEmails) {
+      final provider = email['provider'] as String;
+      if (!emailsByProvider.containsKey(provider)) {
+        emailsByProvider[provider] = [];
+      }
+      emailsByProvider[provider]!.add(email);
+    }
+
+    // Step 2: Find the maximum number of time slices needed
+    const timeSliceMinutes = 15; // 15-minute time slices
+    int maxTimeSlices = 0;
+
+    emailsByProvider.forEach((provider, emails) {
+      if (emails.isEmpty) return;
+
+      final newestDate = emails.first['_dateTime'] as DateTime;
+      final oldestDate = emails.last['_dateTime'] as DateTime;
+
+      final timeDiffMinutes = newestDate.difference(oldestDate).inMinutes;
+      final timeSlices = (timeDiffMinutes / timeSliceMinutes).ceil();
+
+      if (timeSlices > maxTimeSlices) {
+        maxTimeSlices = timeSlices;
       }
     });
 
-    // Wait for all fetches to complete
-    final results = await Future.wait(futures);
+    maxTimeSlices = maxTimeSlices == 0 ? 1 : maxTimeSlices;
+    print('Using $maxTimeSlices time slices for interleaving');
 
-    // Combine all emails into a single flat list
-    for (var emailList in results) {
-      allEmails.addAll(emailList);
-    }
+    // Step 3: Create time-slice buckets for each provider
+    Map<String, List<List<Map<String, dynamic>>>> providerTimeSlices = {};
 
-    // Sort emails by date using the normalized _dateTime field
-    allEmails.sort((b, a) {
-      final dateA = a['_dateTime'] as DateTime;
-      final dateB = b['_dateTime'] as DateTime;
-      // You can change dateA.compareTo(dateB) to dateB.compareTo(dateA) to reverse order
-      return dateA.compareTo(dateB);
+    emailsByProvider.forEach((provider, emails) {
+      if (emails.isEmpty) return;
+
+      final newestDate = emails.first['_dateTime'] as DateTime;
+      final slicedEmails = List<List<Map<String, dynamic>>>.generate(
+        maxTimeSlices,
+        (_) => <Map<String, dynamic>>[],
+      );
+
+      // Distribute emails into time slices
+      for (var email in emails) {
+        final date = email['_dateTime'] as DateTime;
+        final minutesSinceNewest = newestDate.difference(date).inMinutes;
+        final sliceIndex = (minutesSinceNewest / timeSliceMinutes).floor();
+
+        // Cap at the maximum index
+        final actualIndex =
+            sliceIndex < maxTimeSlices ? sliceIndex : maxTimeSlices - 1;
+        slicedEmails[actualIndex].add(email);
+      }
+
+      providerTimeSlices[provider] = slicedEmails;
     });
 
-    return allEmails;
+    // Step 4: Interleave emails from each provider's time slices
+    List<Map<String, dynamic>> interleavedEmails = [];
+
+    // Process each time slice
+    for (int sliceIndex = 0; sliceIndex < maxTimeSlices; sliceIndex++) {
+      // Collect all providers' emails for this time slice
+      List<Map<String, dynamic>> sliceEmails = [];
+
+      emailsByProvider.keys.forEach((provider) {
+        final timeSlices = providerTimeSlices[provider];
+        if (timeSlices != null && sliceIndex < timeSlices.length) {
+          sliceEmails.addAll(timeSlices[sliceIndex]);
+        }
+      });
+
+      // Sort emails within this slice by date
+      sliceEmails.sort((a, b) {
+        final dateA = a['_dateTime'] as DateTime;
+        final dateB = b['_dateTime'] as DateTime;
+        return dateB.compareTo(dateA); // Newest first
+      });
+
+      // Now perfect-shuffle the providers within this sorted slice
+      if (sliceEmails.length > 1) {
+        final Map<String, List<Map<String, dynamic>>> groupedByProvider = {};
+
+        // Group by provider
+        for (var email in sliceEmails) {
+          final provider = email['provider'] as String;
+          if (!groupedByProvider.containsKey(provider)) {
+            groupedByProvider[provider] = [];
+          }
+          groupedByProvider[provider]!.add(email);
+        }
+
+        // Clear the slice list
+        sliceEmails = [];
+
+        // Interleave the providers in this time slice
+        bool hasMoreEmails = true;
+        while (hasMoreEmails) {
+          hasMoreEmails = false;
+
+          for (final provider in groupedByProvider.keys) {
+            final emails = groupedByProvider[provider]!;
+            if (emails.isNotEmpty) {
+              sliceEmails.add(emails.removeAt(0));
+              hasMoreEmails = true;
+            }
+          }
+        }
+      }
+
+      // Add this slice's emails to the final list
+      interleavedEmails.addAll(sliceEmails);
+    }
+
+    // Keep only the first maxResults emails
+    if (interleavedEmails.length > maxResults) {
+      interleavedEmails = interleavedEmails.sublist(0, maxResults);
+    }
+
+    print('Final interleaved email count: ${interleavedEmails.length}');
+    print(
+      'Provider distribution: ' +
+          emailsByProvider.entries
+              .map((e) => '${e.key}: ${e.value.length}')
+              .join(', '),
+    );
+
+    return interleavedEmails;
   }
 
   Future<dynamic> _getServiceForAccount(EmailAccount account) async {
@@ -386,6 +538,30 @@ class UnifiedEmailService {
                   fullMessage,
                   emailAccountId,
                 );
+
+                // Map to EmailAttachment objects
+                return attachmentsList.map((attachment) {
+                  return EmailAttachment(
+                    id: attachment['id'] ?? '',
+                    name: attachment['filename'] ?? 'Unknown',
+                    contentType:
+                        attachment['mimeType'] ?? 'application/octet-stream',
+                    size: attachment['size'] ?? 0,
+                    downloadUrl: attachment['downloadUrl'] ?? '',
+                    emailId: messageId,
+                    emailSubject: email['message'] ?? '',
+                    senderName: email['name'] ?? '',
+                    senderEmail: email['from'] ?? '',
+                    date: email['_dateTime'] ?? DateTime.now(),
+                    accountId: emailAccountId,
+                  );
+                }).toList();
+              } else if (service is OutlookEmailService) {
+                final messageId = email['id'];
+                if (messageId == null) return [];
+
+                // Get Outlook attachments
+                final attachmentsList = await service.getAttachments(messageId);
 
                 // Map to EmailAttachment objects
                 return attachmentsList.map((attachment) {

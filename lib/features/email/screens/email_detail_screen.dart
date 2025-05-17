@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/features/email/widgets/simple_html_viewer.dart';
+import 'package:mail_merge/user/authentication/outlook_email_service.dart';
+import 'package:mail_merge/user/repository/account_repository.dart';
 import 'package:mail_merge/utils/date_formatter.dart';
 import 'package:mail_merge/features/email/screens/compose_email_screen.dart';
 import 'package:mail_merge/features/vip_inbox/services/contact_service.dart';
@@ -329,28 +331,74 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
   // Update the _buildEmailContent method
 
   Widget _buildEmailContent() {
-    // Check if there's any content
+    // Check if there's any content or attachments
     final hasAttachments =
-        (widget.email['attachments'] as List<dynamic>?)?.isNotEmpty == true;
+        (widget.email['attachments'] as List<dynamic>?)?.isNotEmpty == true ||
+        widget.email['hasAttachments'] == true;
 
     // First check if we have meaningful HTML content
     if (widget.email['htmlBody'] != null &&
         !_isHtmlContentEffectivelyEmpty(widget.email['htmlBody'].toString())) {
       print("Using HTML viewer for email content");
-
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Using SimpleHtmlViewer with better emptiness detection
           SimpleHtmlViewer(
             htmlContent: widget.email['htmlBody'],
-            // Add a key to force recreation when content changes
             key: ValueKey('html-${widget.email['id']}'),
           ),
-          // Still show attachments after HTML content
           if (hasAttachments) _buildAttachments(),
         ],
       );
+    }
+    // Special case for Outlook emails - they use body.content structure
+    else if (widget.email['provider'] == 'Outlook' &&
+        widget.email['body'] != null) {
+      final contentType =
+          widget.email['body']['contentType']?.toString().toLowerCase() ?? '';
+      final content = widget.email['body']['content']?.toString() ?? '';
+
+      if (content.isNotEmpty) {
+        if (contentType.contains('html')) {
+          print("Using Outlook HTML content: ${content.length} chars");
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SimpleHtmlViewer(
+                htmlContent: content,
+                key: ValueKey('outlook-html-${widget.email['id']}'),
+              ),
+              if (hasAttachments) _buildAttachments(),
+            ],
+          );
+        } else {
+          // Plain text content
+          print("Using Outlook plain text content: ${content.length} chars");
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12.0),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: SelectableText(
+                  content,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    height: 1.5,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              if (hasAttachments) _buildAttachments(),
+            ],
+          );
+        }
+      }
     }
     // Then check for plain text
     else if (widget.email['plainTextBody'] != null &&
@@ -359,7 +407,6 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Fix #5: Use SelectableText instead of Text to allow copying
           SelectableText(
             widget.email['plainTextBody'],
             style: const TextStyle(fontSize: 16, height: 1.5),
@@ -443,8 +490,36 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
   }
 
   Widget _buildAttachments() {
+    // Check both 'attachments' field and 'hasAttachments' flag
     final List<dynamic> attachments =
         widget.email['attachments'] as List<dynamic>? ?? [];
+
+    // Debug info
+    print("Attachments list length: ${attachments.length}");
+    print("hasAttachments flag: ${widget.email['hasAttachments']}");
+
+    // If no attachments but hasAttachments flag is true, we need to fetch them for Outlook
+    if (attachments.isEmpty &&
+        widget.email['hasAttachments'] == true &&
+        widget.email['provider'] == 'Outlook') {
+      // Show loading placeholder
+      return FutureBuilder(
+        future: _fetchOutlookAttachments(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          } else if (snapshot.hasData && (snapshot.data as List).isNotEmpty) {
+            final emailAttachments = snapshot.data as List<EmailAttachment>;
+            return _buildAttachmentGrid(emailAttachments);
+          } else {
+            return const SizedBox.shrink();
+          }
+        },
+      );
+    }
 
     if (attachments.isEmpty) {
       return const SizedBox.shrink();
@@ -456,7 +531,11 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             .map((attachment) => _convertToEmailAttachment(attachment))
             .toList();
 
-    // Add the requested header section
+    return _buildAttachmentGrid(emailAttachments);
+  }
+
+  // Helper method to build the attachment grid with header
+  Widget _buildAttachmentGrid(List<EmailAttachment> attachments) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -479,9 +558,8 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             ],
           ),
         ),
-        // Use the reusable AttachmentGrid component
         AttachmentGrid(
-          attachments: emailAttachments,
+          attachments: attachments,
           onAttachmentTap: (attachment) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Opening ${attachment.name}...')),
@@ -490,6 +568,46 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         ),
       ],
     );
+  }
+
+  // Add this method to fetch Outlook attachments on demand
+  Future<List<EmailAttachment>> _fetchOutlookAttachments() async {
+    try {
+      final messageId = widget.email['id'];
+      final accountId = widget.email['accountId'];
+
+      if (messageId == null || accountId == null) {
+        return [];
+      }
+
+      // Get the account and create the service
+      final accountRepo = AccountRepository();
+      final account = await accountRepo.getAccountById(accountId);
+      final service = OutlookEmailService(account);
+
+      // Fetch attachments
+      final attachmentData = await service.getAttachments(messageId);
+
+      // Convert to EmailAttachment objects
+      return attachmentData.map((attachment) {
+        return EmailAttachment(
+          id: attachment['id'] ?? '',
+          name: attachment['filename'] ?? 'Unknown',
+          contentType: attachment['mimeType'] ?? 'application/octet-stream',
+          size: attachment['size'] ?? 0,
+          downloadUrl: attachment['downloadUrl'] ?? '',
+          emailId: messageId,
+          emailSubject: widget.email['message'] ?? '',
+          senderName: widget.email['name'] ?? '',
+          senderEmail: widget.email['from'] ?? '',
+          date: widget.email['_dateTime'] ?? DateTime.now(),
+          accountId: accountId,
+        );
+      }).toList();
+    } catch (e) {
+      print('Error fetching Outlook attachments: $e');
+      return [];
+    }
   }
 
   // Optimize the attachment conversion by removing redundant checks
