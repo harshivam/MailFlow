@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:aad_oauth/aad_oauth.dart';
 import 'package:aad_oauth/model/config.dart';
 import 'package:mail_merge/main.dart'; // Add this import
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class OutlookAuthService implements EmailAuthService {
   final String clientId = '7d5e7647-1194-4da1-b42b-23870b41bea6';
@@ -34,6 +35,21 @@ class OutlookAuthService implements EmailAuthService {
   @override
   Future<EmailAccount?> signIn(BuildContext context) async {
     try {
+      // Check internet connection first
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult == ConnectivityResult.none) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No internet connection. Please check your network settings.'),
+              duration: Duration(seconds: 3),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return null;
+      }
+
       print('Starting Outlook sign-in process...'); // Debug log
 
       if (!context.mounted) {
@@ -74,11 +90,18 @@ class OutlookAuthService implements EmailAuthService {
       }
       return null;
     } catch (e) {
-      print('Outlook sign in error: $e'); // More detailed error logging
+      print('Outlook sign in error: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Outlook sign-in error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().contains('network_error') 
+                ? 'No internet connection. Please check your network settings.'
+                : 'Outlook sign-in error: $e'
+            ),
+            backgroundColor: Colors.red,
+          )
+        );
       }
       return null;
     }

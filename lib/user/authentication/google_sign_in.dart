@@ -7,64 +7,91 @@ import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mail_merge/user/models/email_account.dart';
 import 'package:mail_merge/user/repository/account_repository.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
+// Initialize GoogleSignIn with required Gmail API scopes
 final GoogleSignIn _googleSignIn = GoogleSignIn(
   scopes: <String>[
     'email',
-    'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/gmail.modify',
-    'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/gmail.labels',
+    'https://www.googleapis.com/auth/gmail.readonly',  // Read Gmail messages
+    'https://www.googleapis.com/auth/gmail.modify',    // Modify but not delete messages
+    'https://www.googleapis.com/auth/gmail.send',      // Send emails
+    'https://www.googleapis.com/auth/gmail.labels',    // Manage labels
   ],
 );
 
+/// Handles the Google Sign-In process and user authentication
+/// Returns void and navigates to Home screen on success
 Future<void> signInWithGoogle(BuildContext context) async {
   try {
+    // Check internet connection first
+    final hasInternet = await checkInternetConnection(context);
+    if (!hasInternet) return;
+
+    // Initiate Google Sign-In flow
     final GoogleSignInAccount? account = await _googleSignIn.signIn();
 
     if (account == null) {
-      // User canceled the sign-in
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Login cancelled by user')));
+      // User aborted the sign-in process
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login cancelled by user'))
+      );
       return;
     }
 
+    // Get authentication tokens
     final GoogleSignInAuthentication auth = await account.authentication;
-
     final accessToken = auth.accessToken;
     final idToken = auth.idToken;
 
-    // Show snackbar
+    // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Login successful: ${account.email}')),
     );
 
+    // Debug logging
     print('Access Token: $accessToken');
     print('ID Token: $idToken');
 
-    // Add this line right before you navigate to Home
+    // Sync user data with local account system
     await syncCurrentUserToAccountSystem();
 
-    // Navigate to Home screen after successful sign-in
+    // Navigate to Home screen and remove previous routes
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const Home()),
     );
   } catch (error) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Login failed: $error')));
+    // Improve error handling
+    String errorMessage = 'Login failed';
+    
+    if (error.toString().contains('network_error') || 
+        error.toString().contains('Failed host lookup')) {
+      errorMessage = 'No internet connection. Please check your network settings.';
+    } else {
+      errorMessage = 'Login failed: $error';
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        )
+      );
+    }
     print('Sign-in error: $error');
   }
 }
 
+/// Fetches the most recent emails from Gmail API
+/// [context] - BuildContext for showing messages
+/// [accessToken] - Valid Gmail API access token
 Future<void> fetchEmails(BuildContext context, String accessToken) async {
   try {
+    // Request most recent 5 messages
     final response = await http.get(
-      Uri.parse(
-        'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5',
-      ),
+      Uri.parse('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5'),
       headers: {
         'Authorization': 'Bearer $accessToken',
         'Accept': 'application/json',
@@ -75,25 +102,24 @@ Future<void> fetchEmails(BuildContext context, String accessToken) async {
       var data = json.decode(response.body);
       var messages = data['messages'];
 
+      // Handle empty inbox
       if (messages == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('No emails found')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No emails found'))
+        );
         return;
       }
 
+      // Fetch detailed information for each message
       print('Fetched Emails:');
       for (var message in messages) {
         String messageId = message['id'];
-
-        // Fetch details like Subject + Snippet
         await fetchEmailDetails(context, accessToken, messageId);
       }
     } else {
+      // Handle API errors
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to fetch emails: ${response.statusCode}'),
-        ),
+        SnackBar(content: Text('Failed to fetch emails: ${response.statusCode}')),
       );
       print('Failed to fetch emails: ${response.body}');
     }
@@ -102,6 +128,8 @@ Future<void> fetchEmails(BuildContext context, String accessToken) async {
   }
 }
 
+/// Retrieves detailed information for a specific email message
+/// [messageId] - Unique identifier for the Gmail message
 Future<void> fetchEmailDetails(
   BuildContext context,
   String accessToken,
@@ -139,29 +167,29 @@ Future<void> fetchEmailDetails(
   }
 }
 
+/// Retrieves a valid Google access token, either from storage or by refreshing
+/// Returns null if unable to get a valid token
 Future<String?> getGoogleAccessToken() async {
   try {
     print('DEBUG: getGoogleAccessToken called');
     
-    // First check if we have tokens stored in the account repository
+    // Check for stored token in account repository
     final accountRepository = AccountRepository();
     final defaultAccount = await accountRepository.getDefaultAccount();
     
     if (defaultAccount != null && 
         defaultAccount.provider == AccountProvider.gmail &&
         defaultAccount.accessToken.isNotEmpty) {
-      // Check if token has expired
+      // Validate token expiration
       final now = DateTime.now();
       if (now.isBefore(defaultAccount.tokenExpiry)) {
         print('DEBUG: Using stored token for ${defaultAccount.email}');
         return defaultAccount.accessToken;
       }
-      
-      // Token expired, try to refresh with Google Sign-In
       print('DEBUG: Token expired, trying to refresh');
     }
     
-    // If no stored token or it expired, try to get from Google Sign-In
+    // Attempt silent sign-in for token refresh
     final GoogleSignInAccount? account = await _googleSignIn.signInSilently();
     print('DEBUG: signInSilently returned: ${account != null ? account.email : "null"}');
     
@@ -169,7 +197,7 @@ Future<String?> getGoogleAccessToken() async {
       final GoogleSignInAuthentication auth = await account.authentication;
       print('DEBUG: Got access token for ${account.email}');
       
-      // Update the stored token
+      // Update stored tokens
       if (defaultAccount != null) {
         await accountRepository.updateAccountTokens(
           accountId: defaultAccount.id,
@@ -190,6 +218,7 @@ Future<String?> getGoogleAccessToken() async {
   }
 }
 
+/// Performs complete sign-out, clearing all cached data and tokens
 Future<void> signOut(BuildContext? context) async {
   try {
     // Clear ALL cached data thoroughly
@@ -222,6 +251,7 @@ Future<void> signOut(BuildContext? context) async {
   }
 }
 
+/// Retrieves the current signed-in Google user
 Future<GoogleSignInAccount?> getCurrentUser() async {
   try {
     return _googleSignIn.currentUser ?? await _googleSignIn.signInSilently();
@@ -231,6 +261,7 @@ Future<GoogleSignInAccount?> getCurrentUser() async {
   }
 }
 
+/// Synchronizes the current Google user's data with the local account system
 Future<void> syncCurrentUserToAccountSystem() async {
   try {
     final GoogleSignInAccount? googleUser = await getCurrentUser();
@@ -259,4 +290,22 @@ Future<void> syncCurrentUserToAccountSystem() async {
   } catch (e) {
     print('Error syncing current user to account system: $e');
   }
+}
+
+// Add this helper method at the top of the file
+Future<bool> checkInternetConnection(BuildContext context) async {
+  final connectivityResult = await Connectivity().checkConnectivity();
+  final hasInternet = connectivityResult != ConnectivityResult.none;
+  
+  if (!hasInternet && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('No internet connection. Please check your network settings.'),
+        duration: Duration(seconds: 3),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+  
+  return hasInternet;
 }
