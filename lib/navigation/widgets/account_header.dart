@@ -34,7 +34,7 @@ class AccountHeader extends StatelessWidget {
           );
         },
         child: Container(
-          height: 220,
+          height: 225,
           padding: EdgeInsets.fromLTRB(
             16.0,
             statusBarHeight + 26.0,
