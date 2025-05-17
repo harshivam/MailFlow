@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
-import 'package:mail_merge/login/login_page.dart';
-import 'package:mail_merge/login/sign_up.dart';
+import 'package:mail_merge/user/authentication/add_email_accounts.dart'; // Add this import
+import 'package:mail_merge/utils/app_preferences.dart'; // Import AppPreferences
 
 class Firstscreen extends StatefulWidget {
   const Firstscreen({super.key});
@@ -22,14 +22,14 @@ class _FirstscreenState extends State<Firstscreen> {
             const SizedBox(height: 20),
             _buildTitle(),
             const SizedBox(height: 30),
-            _buildButtons(),
+            _buildContinueButton(),
           ],
         ),
       ),
     );
   }
 
-  // gradient
+  // Background color container
   Widget _buildBackground({required Widget child}) {
     return Container(
       decoration: const BoxDecoration(color: Colors.white),
@@ -37,6 +37,7 @@ class _FirstscreenState extends State<Firstscreen> {
     );
   }
 
+  // Lottie animation
   Widget _buildIllustration() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40.0),
@@ -49,7 +50,7 @@ class _FirstscreenState extends State<Firstscreen> {
     );
   }
 
-  /// title and subtitle text
+  // App title and subtitle
   Widget _buildTitle() {
     return Column(
       children: const [
@@ -74,66 +75,35 @@ class _FirstscreenState extends State<Firstscreen> {
     );
   }
 
-  /// Login & Sign Up buttons
-  Widget _buildButtons() {
-    return Column(
-      children: [
-        SizedBox(
-          width: 250,
-          height: 50,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color.fromARGB(255, 13, 110, 255),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
-              ),
-            ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
-            },
-            child: const Text(
-              "LOGIN",
-              style: TextStyle(fontSize: 18, color: Colors.white),
-            ),
+  // Continue button
+  Widget _buildContinueButton() {
+    return SizedBox(
+      width: 250,
+      height: 50,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color.fromARGB(255, 13, 110, 255),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(25),
           ),
         ),
-        const SizedBox(height: 15),
-        SizedBox(
-          width: 250,
-          height: 50,
-          child: Material(
-            elevation: 4, // Adds shadow effect
-            borderRadius: BorderRadius.circular(25), // Same as button shape
-            shadowColor: Colors.grey.withOpacity(0.5), // Soft shadow
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: Colors.transparent,
-                side: const BorderSide(
-                  color: Colors.grey,
-                  width: 1,
-                ), // Subtle grey border
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
+        onPressed: () async {
+          // Use the correct method from AppPreferences
+          await AppPreferences.setFirstLaunchComplete();
+          
+          if (context.mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const AddEmailAccountsPage(),
               ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SignUp()),
-                );
-              },
-              child: const Text(
-                "SIGN UP",
-                style: TextStyle(fontSize: 18, color: Colors.black),
-              ),
-            ),
-          ),
+            );
+          }
+        },
+        child: const Text(
+          "CONTINUE",
+          style: TextStyle(fontSize: 18, color: Colors.white),
         ),
-      ],
+      ),
     );
   }
 }

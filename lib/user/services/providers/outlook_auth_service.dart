@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/user/models/email_account.dart';
+import 'package:mail_merge/user/repository/account_repository.dart';
 import 'package:mail_merge/user/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -8,6 +9,7 @@ import 'package:aad_oauth/aad_oauth.dart';
 import 'package:aad_oauth/model/config.dart';
 import 'package:mail_merge/main.dart'; // Add this import
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:mail_merge/utils/app_preferences.dart';
 
 class OutlookAuthService implements EmailAuthService {
   final String clientId = '7d5e7647-1194-4da1-b42b-23870b41bea6';
@@ -41,7 +43,9 @@ class OutlookAuthService implements EmailAuthService {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('No internet connection. Please check your network settings.'),
+              content: Text(
+                'No internet connection. Please check your network settings.',
+              ),
               duration: Duration(seconds: 3),
               backgroundColor: Colors.red,
             ),
@@ -85,6 +89,14 @@ class OutlookAuthService implements EmailAuthService {
             value: accessToken,
           );
 
+          // Store account
+          final accountRepo = AccountRepository();
+          await accountRepo.addAccount(account);
+          await accountRepo.setDefaultAccount(account.id);
+
+          // Set login state
+          await AppPreferences.setUserLoggedIn();
+
           return account;
         }
       }
@@ -95,12 +107,12 @@ class OutlookAuthService implements EmailAuthService {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              e.toString().contains('network_error') 
-                ? 'No internet connection. Please check your network settings.'
-                : 'Outlook sign-in error: $e'
+              e.toString().contains('network_error')
+                  ? 'No internet connection. Please check your network settings.'
+                  : 'Outlook sign-in error: $e',
             ),
             backgroundColor: Colors.red,
-          )
+          ),
         );
       }
       return null;

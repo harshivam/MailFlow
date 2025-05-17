@@ -2,21 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:mail_merge/home.dart'; // Add this import
+import 'package:mail_merge/navigation/home_navigation.dart'; // Changed from home.dart
 import 'package:mail_merge/user/authentication/add_email_accounts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mail_merge/user/models/email_account.dart';
 import 'package:mail_merge/user/repository/account_repository.dart';
+import 'package:mail_merge/utils/app_preferences.dart'; // Add this import
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 // Initialize GoogleSignIn with required Gmail API scopes
 final GoogleSignIn _googleSignIn = GoogleSignIn(
   scopes: <String>[
     'email',
-    'https://www.googleapis.com/auth/gmail.readonly',  // Read Gmail messages
-    'https://www.googleapis.com/auth/gmail.modify',    // Modify but not delete messages
-    'https://www.googleapis.com/auth/gmail.send',      // Send emails
-    'https://www.googleapis.com/auth/gmail.labels',    // Manage labels
+    'https://www.googleapis.com/auth/gmail.readonly', // Read Gmail messages
+    'https://www.googleapis.com/auth/gmail.modify', // Modify but not delete messages
+    'https://www.googleapis.com/auth/gmail.send', // Send emails
+    'https://www.googleapis.com/auth/gmail.labels', // Manage labels
   ],
 );
 
@@ -33,9 +34,9 @@ Future<void> signInWithGoogle(BuildContext context) async {
 
     if (account == null) {
       // User aborted the sign-in process
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login cancelled by user'))
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Login cancelled by user')));
       return;
     }
 
@@ -56,28 +57,48 @@ Future<void> signInWithGoogle(BuildContext context) async {
     // Sync user data with local account system
     await syncCurrentUserToAccountSystem();
 
-    // Navigate to Home screen and remove previous routes
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const Home()),
-    );
+    if (account != null) {
+      final emailAccount = EmailAccount(
+        id: account.id,
+        email: account.email,
+        displayName: account.displayName ?? account.email,
+        provider: AccountProvider.gmail,
+        accessToken: auth.accessToken ?? '',
+        refreshToken: auth.idToken ?? '',
+        tokenExpiry: DateTime.now().add(const Duration(hours: 1)),
+        photoUrl: account.photoUrl,
+        isDefault: true,
+      );
+
+      // Store account in repository
+      final accountRepo = AccountRepository();
+      await accountRepo.addAccount(emailAccount);
+      await accountRepo.setDefaultAccount(emailAccount.id);
+
+      // Set login state
+      await AppPreferences.setUserLoggedIn();
+
+      if (context.mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeNavigation()),
+        );
+      }
+    }
   } catch (error) {
     // Improve error handling
     String errorMessage = 'Login failed';
-    
-    if (error.toString().contains('network_error') || 
+
+    if (error.toString().contains('network_error') ||
         error.toString().contains('Failed host lookup')) {
-      errorMessage = 'No internet connection. Please check your network settings.';
+      errorMessage =
+          'No internet connection. Please check your network settings.';
     } else {
       errorMessage = 'Login failed: $error';
     }
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        )
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
     }
     print('Sign-in error: $error');
@@ -91,7 +112,9 @@ Future<void> fetchEmails(BuildContext context, String accessToken) async {
   try {
     // Request most recent 5 messages
     final response = await http.get(
-      Uri.parse('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5'),
+      Uri.parse(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5',
+      ),
       headers: {
         'Authorization': 'Bearer $accessToken',
         'Accept': 'application/json',
@@ -104,9 +127,9 @@ Future<void> fetchEmails(BuildContext context, String accessToken) async {
 
       // Handle empty inbox
       if (messages == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No emails found'))
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No emails found')));
         return;
       }
 
@@ -119,7 +142,9 @@ Future<void> fetchEmails(BuildContext context, String accessToken) async {
     } else {
       // Handle API errors
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to fetch emails: ${response.statusCode}')),
+        SnackBar(
+          content: Text('Failed to fetch emails: ${response.statusCode}'),
+        ),
       );
       print('Failed to fetch emails: ${response.body}');
     }
@@ -172,12 +197,12 @@ Future<void> fetchEmailDetails(
 Future<String?> getGoogleAccessToken() async {
   try {
     print('DEBUG: getGoogleAccessToken called');
-    
+
     // Check for stored token in account repository
     final accountRepository = AccountRepository();
     final defaultAccount = await accountRepository.getDefaultAccount();
-    
-    if (defaultAccount != null && 
+
+    if (defaultAccount != null &&
         defaultAccount.provider == AccountProvider.gmail &&
         defaultAccount.accessToken.isNotEmpty) {
       // Validate token expiration
@@ -188,15 +213,17 @@ Future<String?> getGoogleAccessToken() async {
       }
       print('DEBUG: Token expired, trying to refresh');
     }
-    
+
     // Attempt silent sign-in for token refresh
     final GoogleSignInAccount? account = await _googleSignIn.signInSilently();
-    print('DEBUG: signInSilently returned: ${account != null ? account.email : "null"}');
-    
+    print(
+      'DEBUG: signInSilently returned: ${account != null ? account.email : "null"}',
+    );
+
     if (account != null) {
       final GoogleSignInAuthentication auth = await account.authentication;
       print('DEBUG: Got access token for ${account.email}');
-      
+
       // Update stored tokens
       if (defaultAccount != null) {
         await accountRepository.updateAccountTokens(
@@ -206,10 +233,10 @@ Future<String?> getGoogleAccessToken() async {
           tokenExpiry: DateTime.now().add(const Duration(hours: 1)),
         );
       }
-      
+
       return auth.accessToken;
     }
-    
+
     print('DEBUG: No Google account, returning null token');
     return null;
   } catch (error) {
@@ -221,19 +248,12 @@ Future<String?> getGoogleAccessToken() async {
 /// Performs complete sign-out, clearing all cached data and tokens
 Future<void> signOut(BuildContext? context) async {
   try {
-    // Clear ALL cached data thoroughly
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('cached_emails');
-    await prefs.remove('cached_vip_emails');
-    await prefs.remove('cached_vip_emails_by_contact');
-    await prefs.remove('cached_vip_contacts');
+    // Clear stored preferences
+    await AppPreferences.clearSession();
 
-    // Also clear the account repository (secure storage)
-    final accountRepository = AccountRepository();
-    final accounts = await accountRepository.getAllAccounts();
-    for (final account in accounts) {
-      await accountRepository.deleteAccount(account.id);
-    }
+    // Clear account repository
+    final accountRepo = AccountRepository();
+    await accountRepo.deleteAllAccounts();
 
     // Then sign out from Google
     await _googleSignIn.signOut();
@@ -296,16 +316,18 @@ Future<void> syncCurrentUserToAccountSystem() async {
 Future<bool> checkInternetConnection(BuildContext context) async {
   final connectivityResult = await Connectivity().checkConnectivity();
   final hasInternet = connectivityResult != ConnectivityResult.none;
-  
+
   if (!hasInternet && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('No internet connection. Please check your network settings.'),
+        content: Text(
+          'No internet connection. Please check your network settings.',
+        ),
         duration: Duration(seconds: 3),
         backgroundColor: Colors.red,
       ),
     );
   }
-  
+
   return hasInternet;
 }

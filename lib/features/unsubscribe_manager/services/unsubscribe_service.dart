@@ -10,7 +10,7 @@ import 'package:mail_merge/core/services/event_bus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mail_merge/main.dart'; // Add this import to access navigatorKey
+import 'package:mail_merge/main.dart'; // Make sure this import is correct
 import 'package:mail_merge/features/unsubscribe_manager/widgets/unsubscribe_webview.dart';
 
 class UnsubscribeService {
