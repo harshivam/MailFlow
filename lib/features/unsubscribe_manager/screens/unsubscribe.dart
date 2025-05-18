@@ -331,7 +331,7 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
   // Add this method to your UnsubscribeScreen class
   Widget _buildInfoBanner() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: EdgeInsets.symmetric( vertical: 8),
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.blue[50],
@@ -411,7 +411,6 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
       return Column(
         children: [
           _buildStatusHeader(),
-          _buildInfoBanner(), // Add this line
           Expanded(child: SubscriptionShimmerList()),
         ],
       );
@@ -421,7 +420,6 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
       children: [
         // Header with select all
         _buildStatusHeader(),
-        _buildInfoBanner(), // Add this line
         // List of subscriptions
         Expanded(
           child: RefreshIndicator(
@@ -431,10 +429,18 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
                     ? _buildEmptyState()
                     : ListView.builder(
                       padding: EdgeInsets.all(16),
-                      itemCount: _subscriptions.length,
+                      itemCount:
+                          _subscriptions.length + 1, // +1 for the info banner
                       itemBuilder: (context, index) {
+                        // Show info banner at the top of the list
+                        if (index == 0) {
+                          return _buildInfoBanner();
+                        }
+
+                        // Adjust index to account for the banner
+                        final subscriptionIndex = index - 1;
                         return SubscriptionItem(
-                          subscription: _subscriptions[index],
+                          subscription: _subscriptions[subscriptionIndex],
                           onToggleSelect: _toggleSelection,
                           onUnsubscribe: _unsubscribe,
                         );
@@ -499,23 +505,30 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.mark_email_read, size: 80, color: Colors.grey[400]),
-          SizedBox(height: 16),
-          Text(
-            'No subscription emails found',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    return ListView(
+      padding: EdgeInsets.all(16),
+      children: [
+        _buildInfoBanner(),
+        SizedBox(height: 100), // Space between banner and empty state content
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.mark_email_read, size: 80, color: Colors.grey[400]),
+              SizedBox(height: 16),
+              Text(
+                'No subscription emails found',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Pull down to refresh and find subscriptions',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ],
           ),
-          SizedBox(height: 8),
-          Text(
-            'Pull down to refresh and find subscriptions',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
