@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:html_unescape/html_unescape.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 class SimpleHtmlViewer extends StatefulWidget {
   final String htmlContent;
   final double initialHeight; // Allow overriding default height
+  final bool handleExternalLinks; // Option to handle external links
 
   const SimpleHtmlViewer({
     super.key,
     required this.htmlContent,
     this.initialHeight = 1.0, // Start with minimal height
+    this.handleExternalLinks = true, // Enable by default
   });
 
   @override
@@ -19,6 +22,7 @@ class SimpleHtmlViewer extends StatefulWidget {
 class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
   late final WebViewController _controller;
   bool _isLoading = true;
+  bool _hasError = false;
   final HtmlUnescape _unescape = HtmlUnescape();
   final double _webViewHeight = 1; // Start with minimal height
   late final ValueNotifier<double> _heightNotifier;
@@ -38,6 +42,7 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
               onPageStarted: (String url) {
                 setState(() {
                   _isLoading = true;
+                  _hasError = false;
                 });
               },
               onPageFinished: (String url) {
@@ -46,6 +51,39 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
                   _isLoading = false;
                 });
               },
+              onWebResourceError: (WebResourceError error) {
+                // Log all WebView errors for debugging
+                print(
+                  'WebView error: ${error.description} (${error.errorType})',
+                );
+
+                // Only mark as error for specific cases that would prevent content display
+                // Most image loading errors should be ignored
+                if (error.description.contains('via.placeholder')) {
+                  print('Ignoring placeholder image error');
+                  return;
+                }
+
+                // Only set error state for main frame issues that are critical
+                if (error.isForMainFrame == true) {
+                  print('Critical main frame WebView error');
+                  setState(() {
+                    _hasError = true;
+                  });
+                }
+              },
+              // Add external link handling from HtmlEmailViewer
+              onNavigationRequest:
+                  widget.handleExternalLinks
+                      ? (NavigationRequest request) {
+                        if (request.url.startsWith('http')) {
+                          // Handle external links
+                          _launchUrl(request.url);
+                          return NavigationDecision.prevent;
+                        }
+                        return NavigationDecision.navigate;
+                      }
+                      : null,
             ),
           )
           // Add JavaScript channel for height updates
@@ -60,6 +98,20 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
             },
           )
           ..loadHtmlString(_processHtmlContent(widget.htmlContent));
+  }
+
+  // Launch URLs method from HtmlEmailViewer
+  Future<void> _launchUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    try {
+      if (await url_launcher.canLaunchUrl(uri)) {
+        await url_launcher.launchUrl(uri);
+      } else {
+        debugPrint('Could not launch URL: $url');
+      }
+    } catch (e) {
+      debugPrint('Error launching URL: $e');
+    }
   }
 
   @override
@@ -128,6 +180,9 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
             height: auto; 
             display: inline-block;
           }
+          img.broken-image {
+            display: none;
+          }
           table {
             max-width: 100%;
             display: block;
@@ -153,10 +208,26 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
         <script>
           // Run after DOM is loaded
           document.addEventListener('DOMContentLoaded', function() {
-            // Fix common email rendering issues
+            // Handle image loading errors
             document.querySelectorAll('img').forEach(img => {
+              // Hide CID images that won't load
               if (img.src && img.src.startsWith('cid:')) {
                 img.style.display = 'none';
+              }
+              
+              // Add error handler for all images
+              img.onerror = function() {
+                this.classList.add('broken-image');
+                console.log('Image failed to load: ' + this.src);
+              };
+              
+              // Force img.src through a local proxy if using placeholder domains
+              if (img.src && (
+                  img.src.includes('placeholder.com') || 
+                  img.src.includes('via.placeholder') ||
+                  img.src.includes('placekitten') ||
+                  img.src.includes('placehold.it'))) {
+                img.classList.add('broken-image');
               }
             });
             
@@ -227,14 +298,24 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
     return ValueListenableBuilder<double>(
       valueListenable: _heightNotifier,
       builder: (context, height, child) {
-        // Don't render at all if height is zero
-        if (height <= 0) {
-          return const SizedBox.shrink();
+        // Only hide completely if there's a critical error
+        if (_hasError) {
+          print("HTML viewer has critical error, returning minimal container");
+          return Container(
+            width: double.infinity,
+            height: 0, // Zero height will allow fallback to show
+          );
+        }
+
+        // Allow rendering even with small height - some emails are just short
+        if (height < 50 && !_isLoading) {
+          print("HTML content height is very small: $height");
         }
 
         return SizedBox(
           width: double.infinity,
-          height: height,
+          // Use a minimum height of 100 to ensure something is visible
+          height: height < 100 && !_isLoading ? 100 : height,
           child: Stack(
             children: [
               WebViewWidget(controller: _controller),

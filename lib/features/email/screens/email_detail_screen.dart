@@ -336,16 +336,75 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         (widget.email['attachments'] as List<dynamic>?)?.isNotEmpty == true ||
         widget.email['hasAttachments'] == true;
 
-    // First check if we have meaningful HTML content
+    // Debug the available content fields
+    print(
+      "Email content fields: ${widget.email.keys.where((k) => ['body', 'htmlBody', 'plainTextBody', 'snippet', 'text', 'content'].contains(k)).toList()}",
+    );
+
+    // Check for htmlBody content but wrap in a FutureBuilder to handle loading errors
     if (widget.email['htmlBody'] != null &&
         !_isHtmlContentEffectivelyEmpty(widget.email['htmlBody'].toString())) {
       print("Using HTML viewer for email content");
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SimpleHtmlViewer(
-            htmlContent: widget.email['htmlBody'],
-            key: ValueKey('html-${widget.email['id']}'),
+          // First try to display HTML content, if it fails we'll show the text
+          FutureBuilder(
+            // Wait 2 seconds to see if HTML loads
+            future: Future.delayed(const Duration(seconds: 2), () => true),
+            builder: (context, snapshot) {
+              final isTimeoutFinished =
+                  snapshot.connectionState == ConnectionState.done;
+
+              return Column(
+                children: [
+                  // Always show HTML viewer initially
+                  SimpleHtmlViewer(
+                    htmlContent: widget.email['htmlBody'],
+                    key: ValueKey('html-${widget.email['id']}'),
+                  ),
+
+                  // If HTML viewer doesn't show content after a timeout,
+                  // provide a fallback with the snippet text
+                  if (isTimeoutFinished &&
+                      widget.email['snippet'] != null &&
+                      widget.email['snippet'].toString().isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 16.0),
+                      padding: const EdgeInsets.all(12.0),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Email Text:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SelectableText(
+                            widget.email['snippet'],
+                            style: const TextStyle(
+                              fontSize: 16,
+                              height: 1.5,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
           if (hasAttachments) _buildAttachments(),
         ],
@@ -400,6 +459,63 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         }
       }
     }
+    // Check for standard email body content
+    else if (widget.email['body'] != null &&
+        widget.email['body'].toString().isNotEmpty &&
+        widget.email['body'] is String) {
+      print("Using body field for email content");
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: SelectableText(
+              widget.email['body'],
+              style: const TextStyle(
+                fontSize: 16,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          if (hasAttachments) _buildAttachments(),
+        ],
+      );
+    }
+    // Check for text or content fields that might contain the message
+    else if (widget.email['text'] != null &&
+        widget.email['text'].toString().isNotEmpty) {
+      print("Using text field for email content");
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: SelectableText(
+              widget.email['text'],
+              style: const TextStyle(
+                fontSize: 16,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          if (hasAttachments) _buildAttachments(),
+        ],
+      );
+    }
     // Then check for plain text
     else if (widget.email['plainTextBody'] != null &&
         widget.email['plainTextBody'].toString().isNotEmpty) {
@@ -407,9 +523,22 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SelectableText(
-            widget.email['plainTextBody'],
-            style: const TextStyle(fontSize: 16, height: 1.5),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: SelectableText(
+              widget.email['plainTextBody'],
+              style: const TextStyle(
+                fontSize: 16,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
           ),
           if (hasAttachments) _buildAttachments(),
         ],
@@ -422,9 +551,22 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.email['snippet'],
-            style: const TextStyle(fontSize: 16, height: 1.5),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: SelectableText(
+              widget.email['snippet'],
+              style: const TextStyle(
+                fontSize: 16,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
           ),
           if (hasAttachments) _buildAttachments(),
         ],
@@ -436,10 +578,23 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     }
 
     // No content and no attachments
-    return const Center(
-      child: Text(
-        'No content available',
-        style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.email_outlined, size: 48, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
+            'No content available',
+            style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+          ),
+          // Add a debug text to show what fields are available
+          const SizedBox(height: 16),
+          Text(
+            'Available fields: ${widget.email.keys.join(", ")}',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
       ),
     );
   }
