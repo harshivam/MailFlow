@@ -432,6 +432,14 @@ class _HomeNavigationState extends State<HomeNavigation>
       floatingActionButton:
           _bottomNavIndex == 0
               ? FloatingActionButton(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  side: BorderSide(
+                    color: const Color.fromARGB(255, 179, 137, 213),
+                    width: 2,
+                  ),
+                ),
                 child: const Icon(Icons.edit),
                 onPressed: () {
                   Navigator.push(

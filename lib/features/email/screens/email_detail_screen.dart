@@ -273,6 +273,11 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       ),
       // Add floating action button for compose email
       floatingActionButton: FloatingActionButton(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(17),
+          side: BorderSide(color: Colors.purple.shade200, width: 1),
+        ),
         onPressed: () {
           Navigator.push(
             context,

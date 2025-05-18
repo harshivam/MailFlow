@@ -23,6 +23,7 @@ class AccountHeader extends StatelessWidget {
     final statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Material(
+      elevation: 0,
       color: Colors.blue,
       child: InkWell(
         onTap: () {

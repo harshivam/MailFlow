@@ -153,6 +153,14 @@ class _UnsubscribeWebViewState extends State<UnsubscribeWebView> {
       floatingActionButton:
           _unsubscribeDetected
               ? FloatingActionButton.extended(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  side: BorderSide(
+                    color: const Color.fromARGB(255, 179, 137, 213),
+                    width: 2,
+                  ),
+                ),
                 onPressed: () {
                   Navigator.pop(context, true);
                 },

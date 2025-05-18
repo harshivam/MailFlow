@@ -457,6 +457,14 @@ class _VipScreenState extends State<VipScreen>
       bottom: 16,
       right: 16,
       child: FloatingActionButton(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(17),
+          side: BorderSide(
+            color: const Color.fromARGB(255, 179, 137, 213),
+            width: 2,
+          ),
+        ),
         onPressed: () async {
           final result = await Navigator.push(
             context,

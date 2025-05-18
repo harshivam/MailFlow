@@ -52,6 +52,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
               ? _buildEmptyState()
               : _buildContactsList(),
       floatingActionButton: FloatingActionButton(
+        elevation: 0, // Remove shadow
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(17),
+          side: BorderSide(
+            color: const Color.fromARGB(255, 179, 137, 213),
+            width: 2,
+          ),
+        ),
         child: const Icon(Icons.add),
         onPressed: () async {
           final result = await Navigator.push(
