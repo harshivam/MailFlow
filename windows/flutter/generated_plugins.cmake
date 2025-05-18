@@ -4,8 +4,8 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
-  firebase_auth
-  firebase_core
+  desktop_webview_auth
+  desktop_webview_window
   flutter_secure_storage_windows
   share_plus
   url_launcher_windows

@@ -125,13 +125,6 @@ class AddEmailAccountsPage extends StatelessWidget {
             const Divider(),
             _buildEmailOption(
               context,
-              icon: Icons.email,
-              color: Colors.purple,
-              label: "Yahoo",
-            ),
-            const Divider(),
-            _buildEmailOption(
-              context,
               icon: Icons.more_horiz,
               color: Colors.grey,
               label: "Other",

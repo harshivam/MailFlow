@@ -1,5 +1,7 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+add_compile_options(/wd4996)
+add_compile_options(/W3)
 project(mail_merge LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change

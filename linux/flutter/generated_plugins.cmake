@@ -3,6 +3,8 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  desktop_webview_auth
+  desktop_webview_window
   flutter_secure_storage_linux
   open_file_linux
   url_launcher_linux

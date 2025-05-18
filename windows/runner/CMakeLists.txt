@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
+add_compile_options(/wd4996)
+add_compile_options(/W3)
 project(runner LANGUAGES CXX)
+
+# Ensure C++17 is used
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Define the application target. To change its name, change BINARY_NAME in the
 # top-level CMakeLists.txt, not the value here, or `flutter run` will no longer

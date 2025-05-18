@@ -9,6 +9,18 @@ import 'package:mail_merge/user/models/email_account.dart';
 import 'package:mail_merge/user/repository/account_repository.dart';
 import 'package:mail_merge/utils/app_preferences.dart'; // Add this import
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+// Import the correct Windows WebView package
+import 'package:desktop_webview_auth/desktop_webview_auth.dart';
+import 'package:desktop_webview_window/desktop_webview_window.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
+// Google OAuth configuration
+// Use the Web Client ID you created in Google Cloud Console
+final _webClientId =
+    "180540721054-uqm5mqv50klcpmpufsskh3vkp2rb0dbh.apps.googleusercontent.com";
+final _redirectUri = "http://localhost";
 
 // Initialize GoogleSignIn with required Gmail API scopes
 final GoogleSignIn _googleSignIn = GoogleSignIn(
@@ -21,6 +33,8 @@ final GoogleSignIn _googleSignIn = GoogleSignIn(
   ],
 );
 
+
+
 /// Handles the Google Sign-In process and user authentication
 /// Returns void and navigates to Home screen on success
 Future<void> signInWithGoogle(BuildContext context) async {
@@ -28,6 +42,12 @@ Future<void> signInWithGoogle(BuildContext context) async {
     // Check internet connection first
     final hasInternet = await checkInternetConnection(context);
     if (!hasInternet) return;
+
+    // Special handling for Windows platform
+    if (!kIsWeb && Platform.isWindows) {
+      await _signInWithGoogleOnWindows(context);
+      return;
+    }
 
     // Initiate Google Sign-In flow
     final GoogleSignInAccount? account = await _googleSignIn.signIn();
@@ -330,4 +350,205 @@ Future<bool> checkInternetConnection(BuildContext context) async {
   }
 
   return hasInternet;
+}
+
+/// Windows-specific Google Sign-In implementation using WebView
+Future<void> _signInWithGoogleOnWindows(BuildContext context) async {
+  try {
+    // Show a loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Check if WebView is available on the system
+    if (!await WebviewWindow.isWebviewAvailable()) {
+      Navigator.of(context).pop(); // Close loading dialog
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'WebView is not available on this system. Please install WebView2 Runtime.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Close loading dialog before launching WebView
+    Navigator.of(context).pop();
+
+    // OAuth 2.0 scopes for Gmail access
+    final List<String> scopes = [
+      'email',
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/gmail.modify',
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/gmail.labels',
+    ];
+
+    // Build the OAuth URL with your web client ID
+    final scopesString = Uri.encodeComponent(scopes.join(' '));
+    final authUrl =
+        'https://accounts.google.com/o/oauth2/auth'
+        '?client_id=$_webClientId'
+        '&redirect_uri=${Uri.encodeComponent(_redirectUri)}'
+        '&response_type=token'
+        '&scope=$scopesString'
+        '&prompt=select_account';
+
+    // Create and launch webview window
+    final webview = await WebviewWindow.create(
+      configuration: const CreateConfiguration(
+        title: "Google Sign In",
+        windowWidth: 800,
+        windowHeight: 1000,
+      ),
+    );
+
+    // Register URL handler to capture OAuth redirect
+    webview.addOnUrlRequestCallback((url) {
+      if (url.startsWith(_redirectUri)) {
+        // Extract token from URL fragment
+        final uri = Uri.parse(url);
+        final fragment = uri.fragment;
+        if (fragment.isNotEmpty) {
+          final params = Uri.splitQueryString(fragment);
+          final accessToken = params['access_token'];
+          final idToken = params['id_token'];
+          final expiresIn = params['expires_in'];
+
+          if (accessToken != null && context.mounted) {
+            // Close the webview once we have the token
+            webview.close();
+
+            // Process the token
+            _processGoogleTokenOnWindows(
+              context: context,
+              accessToken: accessToken,
+              idToken: idToken,
+              expiresIn: expiresIn,
+            );
+          }
+        }
+        // Handled the URL
+      }
+      // Not handled
+    });
+
+    // Launch the webview with Google OAuth URL
+    webview.launch(authUrl);
+  } catch (e) {
+    print('Error with WebView window: $e');
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error launching sign-in: $e')));
+    }
+  }
+}
+
+/// Process the authentication token from WebView
+Future<void> _processGoogleTokenOnWindows({
+  required BuildContext context,
+  required String accessToken,
+  String? idToken,
+  String? expiresIn,
+}) async {
+  try {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Fetch user information using the access token
+    final userInfo = await _getUserInfoWithToken(accessToken);
+
+    if (context.mounted) Navigator.of(context).pop(); // Close loading dialog
+
+    if (userInfo != null) {
+      // Calculate token expiry
+      final int expirySeconds = int.tryParse(expiresIn ?? '3600') ?? 3600;
+      final tokenExpiry = DateTime.now().add(Duration(seconds: expirySeconds));
+
+      // Create an EmailAccount from the obtained info
+      final emailAccount = EmailAccount(
+        id:
+            userInfo['id'] ??
+            userInfo['sub'] ??
+            DateTime.now().millisecondsSinceEpoch.toString(),
+        email: userInfo['email'] ?? '',
+        displayName: userInfo['name'] ?? userInfo['email'] ?? 'Gmail User',
+        provider: AccountProvider.gmail,
+        accessToken: accessToken,
+        refreshToken: idToken ?? '',
+        tokenExpiry: tokenExpiry,
+        photoUrl: userInfo['picture'],
+        isDefault: true,
+      );
+
+      // Store account in repository
+      final accountRepo = AccountRepository();
+      await accountRepo.addAccount(emailAccount);
+      await accountRepo.setDefaultAccount(emailAccount.id);
+
+      // Set login state
+      await AppPreferences.setUserLoggedIn();
+
+      // Navigate to home screen
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login successful: ${userInfo['email']}')),
+        );
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeNavigation()),
+        );
+      }
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to get user information'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  } catch (e) {
+    print('Error processing Google token on Windows: $e');
+    if (context.mounted) {
+      Navigator.of(context).pop(); // Close loading dialog if open
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error signing in: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+
+// Helper function to get user info with token
+Future<Map<String, dynamic>?> _getUserInfoWithToken(String accessToken) async {
+  try {
+    final response = await http.get(
+      Uri.parse('https://www.googleapis.com/oauth2/v3/userinfo'),
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      print(
+        'Failed to get user info: ${response.statusCode}, ${response.body}',
+      );
+      return null;
+    }
+  } catch (e) {
+    print('Error getting user info: $e');
+    return null;
+  }
 }
