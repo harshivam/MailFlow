@@ -336,6 +336,16 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         (widget.email['attachments'] as List<dynamic>?)?.isNotEmpty == true ||
         widget.email['hasAttachments'] == true;
 
+    // DEBUGGING: Print email metadata to help identify problem emails
+    print("Email ID: ${widget.email['id']}");
+    print("From: ${widget.email['from']}");
+    print("Provider: ${widget.email['provider']}");
+    print("Subject: ${widget.email['message']}");
+    print("Has HTML: ${widget.email['htmlBody'] != null}");
+    print(
+      "HTML Size: ${widget.email['htmlBody']?.toString().length ?? 0} chars",
+    );
+
     // Debug the available content fields
     print(
       "Email content fields: ${widget.email.keys.where((k) => ['body', 'htmlBody', 'plainTextBody', 'snippet', 'text', 'content'].contains(k)).toList()}",
@@ -349,62 +359,10 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // First try to display HTML content, if it fails we'll show the text
-          FutureBuilder(
-            // Wait 2 seconds to see if HTML loads
-            future: Future.delayed(const Duration(seconds: 2), () => true),
-            builder: (context, snapshot) {
-              final isTimeoutFinished =
-                  snapshot.connectionState == ConnectionState.done;
-
-              return Column(
-                children: [
-                  // Always show HTML viewer initially
-                  SimpleHtmlViewer(
-                    htmlContent: widget.email['htmlBody'],
-                    key: ValueKey('html-${widget.email['id']}'),
-                  ),
-
-                  // If HTML viewer doesn't show content after a timeout,
-                  // provide a fallback with the snippet text
-                  if (isTimeoutFinished &&
-                      widget.email['snippet'] != null &&
-                      widget.email['snippet'].toString().isNotEmpty)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(top: 16.0),
-                      padding: const EdgeInsets.all(12.0),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Email Text:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SelectableText(
-                            widget.email['snippet'],
-                            style: const TextStyle(
-                              fontSize: 16,
-                              height: 1.5,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              );
-            },
+          // Simple HTML viewer without text fallback
+          SimpleHtmlViewer(
+            htmlContent: widget.email['htmlBody'],
+            key: ValueKey('html-${widget.email['id']}'),
           ),
           if (hasAttachments) _buildAttachments(),
         ],

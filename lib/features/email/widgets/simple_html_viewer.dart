@@ -174,11 +174,14 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
             line-height: 1.5;
             color: #333;
             word-wrap: break-word;
+            max-height: 10000px; /* Prevent extremely tall content */
+            overflow-y: auto; /* Make tall content scrollable within the WebView */
           }
           img { 
             max-width: 100%; 
             height: auto; 
             display: inline-block;
+            max-height: 800px; /* Prevent extremely tall images */
           }
           img.broken-image {
             display: none;
@@ -188,6 +191,8 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
             display: block;
             overflow-x: auto;
             border-collapse: collapse;
+            max-height: 2000px; /* Prevent extremely tall tables */
+            overflow-y: auto;
           }
           pre {
             white-space: pre-wrap;
@@ -200,6 +205,11 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
           a {
             color: #0366d6;
             text-decoration: none;
+          }
+          /* Add max height for other potentially large elements */
+          div, section, article {
+            max-height: 5000px;
+            overflow-y: auto;
           }
         </style>
       </head>
@@ -247,7 +257,9 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
                 document.body.offsetHeight,
                 document.documentElement.offsetHeight
               );
-              Height.postMessage(height);
+              // Cap height to prevent crashes
+              const safeHeight = Math.min(height, 10000);
+              Height.postMessage(safeHeight);
             }, 300);
           });
         </script>
@@ -312,10 +324,19 @@ class _SimpleHtmlViewerState extends State<SimpleHtmlViewer> {
           print("HTML content height is very small: $height");
         }
 
+        // Cap height to prevent WebView crashes with extremely large content
+        double safeHeight = height;
+        if (height > 10000) {
+          print(
+            "WARNING: Limiting extremely tall HTML content from ${height}px to 10000px",
+          );
+          safeHeight = 10000;
+        }
+
         return SizedBox(
           width: double.infinity,
-          // Use a minimum height of 100 to ensure something is visible
-          height: height < 100 && !_isLoading ? 100 : height,
+          // Use minimum height of 100 for visible content, cap at 10000 for safety
+          height: safeHeight < 100 && !_isLoading ? 100 : safeHeight,
           child: Stack(
             children: [
               WebViewWidget(controller: _controller),

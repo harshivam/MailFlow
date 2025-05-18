@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mail_merge/utils/date_formatter.dart';
 import 'package:mail_merge/features/email/screens/email_detail_screen.dart';
+import 'package:html_unescape/html_unescape.dart';
 
 class EmailItem extends StatelessWidget {
   final String name;
@@ -9,8 +10,9 @@ class EmailItem extends StatelessWidget {
   final String avatar;
   final String snippet;
   final Map<String, dynamic>? emailData;
+  final HtmlUnescape _htmlUnescape = HtmlUnescape();
 
-  const EmailItem({
+  EmailItem({
     super.key,
     required this.name,
     required this.subject,
@@ -19,6 +21,31 @@ class EmailItem extends StatelessWidget {
     this.snippet = "",
     this.emailData,
   });
+
+  // Method to decode HTML entities and clean up snippet text
+  String _decodeSnippet(String text) {
+    if (text.isEmpty) return "No preview available";
+
+    try {
+      // Decode HTML entities
+      String decoded = _htmlUnescape.convert(text);
+
+      // Remove any HTML tags that might be in the snippet
+      decoded = decoded.replaceAll(RegExp(r'<[^>]*>'), '');
+
+      // Fix common email formatting issues
+      decoded = decoded
+          .replaceAll('&nbsp;', ' ')
+          .replaceAll('=\r\n', '')
+          .replaceAll('=\n', '')
+          .replaceAll('3D"', '"');
+
+      return decoded;
+    } catch (e) {
+      print('Error decoding snippet: $e');
+      return text; // Return original if decoding fails
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +158,7 @@ class EmailItem extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(left: 52.0, top: 4.0),
                 child: Text(
-                  snippet.isNotEmpty ? snippet : "No preview available",
+                  _decodeSnippet(snippet),
                   style: const TextStyle(color: Colors.black54, fontSize: 13),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
