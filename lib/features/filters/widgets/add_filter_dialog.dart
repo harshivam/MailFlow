@@ -62,7 +62,7 @@ class _AddFilterDialogState extends State<AddFilterDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
-      elevation: 8,
+      elevation: 0,
       child: SingleChildScrollView(
         // Add this wrapper
         child: AnimatedContainer(
@@ -260,21 +260,9 @@ class _AddFilterDialogState extends State<AddFilterDialog> {
                                           color:
                                               isSelected
                                                   ? Colors.white
-                                                  : Colors.transparent,
-                                          width: 3,
+                                                  : Colors.grey[300]!,
+                                          width: isSelected ? 3 : 1,
                                         ),
-                                        boxShadow:
-                                            isSelected
-                                                ? [
-                                                  BoxShadow(
-                                                    color: color.withOpacity(
-                                                      0.4,
-                                                    ),
-                                                    blurRadius: 8,
-                                                    spreadRadius: 2,
-                                                  ),
-                                                ]
-                                                : null,
                                       ),
                                       child:
                                           isSelected

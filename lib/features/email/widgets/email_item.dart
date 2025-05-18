@@ -178,7 +178,7 @@ class EmailItem extends StatelessWidget {
         return Colors.red;
       case 'outlook':
         return Colors.blue;
-      case 'rediffmail':
+      case 'yahoo':
         return Colors.purple;
       default:
         return Colors.grey;

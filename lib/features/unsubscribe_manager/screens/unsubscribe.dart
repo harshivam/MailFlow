@@ -331,7 +331,7 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
   // Add this method to your UnsubscribeScreen class
   Widget _buildInfoBanner() {
     return Container(
-      margin: EdgeInsets.symmetric( vertical: 8),
+      margin: EdgeInsets.symmetric(vertical: 8),
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.blue[50],
@@ -478,6 +478,7 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
                 child: Checkbox(
                   value: _allSelected,
                   onChanged: (_) => _toggleSelectAll(),
+                  activeColor: Colors.grey[700],
                 ),
               ),
               SizedBox(width: 8),
@@ -547,13 +548,7 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, -2),
-          ),
-        ],
+        border: Border(top: BorderSide(color: Colors.grey[300]!, width: 0.5)),
       ),
       child: SafeArea(
         child: Row(
@@ -568,7 +563,12 @@ class _UnsubscribeScreenState extends State<UnsubscribeScreen>
             // Unsubscribe selected button
             ElevatedButton(
               onPressed: _isBatchUnsubscribing ? null : _batchUnsubscribe,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor:
+                    Colors.white, // Change text color from purple to grey
+                elevation: 0, // Remove shadow
+              ),
               child:
                   _isBatchUnsubscribing
                       ? SizedBox(
