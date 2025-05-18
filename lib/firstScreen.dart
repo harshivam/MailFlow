@@ -55,7 +55,7 @@ class _FirstscreenState extends State<Firstscreen> {
     return Column(
       children: const [
         Text(
-          "Mail Merge",
+          "Mail Flow",
           style: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
@@ -90,7 +90,7 @@ class _FirstscreenState extends State<Firstscreen> {
         onPressed: () async {
           // Use the correct method from AppPreferences
           await AppPreferences.setFirstLaunchComplete();
-          
+
           if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
