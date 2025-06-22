@@ -29,11 +29,7 @@
 
 | Filter View | Create Filter | Add Filter |
 |-------------|----------------|-------------|
-| ![](screenshots/filter.jpeg) | ![](screenshots/createCustomFilter.jpeg) | ![](screenshots/addCustomFilter.jpeg) |
-
-| Hamburger Filter |
-|------------------|
-| ![](screenshots/customFilterhamburger.jpeg) |
+| ![](screenshots/filter.jpeg) | ![](screenshots/createCustomFilter.jpeg) | ![](screenshots/customFilterhamburger.jpeg) |
 
 ---
 
