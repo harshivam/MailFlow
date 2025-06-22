@@ -1,37 +1,119 @@
-# 📬 Mail Flow – Unified Email Manager App
+# 📬 Mail Flow – Unified Email Manager
 
-**Mail Flow** is a Flutter-based email management application that allows users to seamlessly manage multiple email accounts, including **Gmail** and **Outlook**, in a unified, intuitive interface.
+**Mail Flow** is a Flutter-based cross-platform email manager that helps users integrate and manage both Gmail and Outlook accounts in one intuitive, responsive application. Built with modern Flutter architecture, secure OAuth authentication, and intelligent filtering capabilities.
 
 ---
 
 ## 🚀 Features
 
-- 🔐 OAuth2 Authentication with Google & Microsoft
-- 📥 Unified Inbox for Gmail and Outlook
-- 🌟 VIP Inbox to prioritize emails from important contacts
-- 📎 Attachment Hub for previewing & downloading email files
-- 🔍 Custom Filters and Email Categorization (e.g., Promotions, Personal, etc.)
-- 📤 Compose & Send Emails via Gmail API
-- 🧠 Intelligent Email Parsing using IMAP (Outlook)
-- 🎨 Clean UI with Lottie animations and smooth transitions
-- 📶 Offline-aware (detects internet connectivity)
-- 📱 Mobile-first design with responsive layout
+- 🔐 OAuth2 Login for Gmail & Outlook
+- 📥 Unified Inbox for all connected accounts
+- ⭐ VIP Inbox for important senders
+- 🧾 Smart Custom Filters (create/edit/delete)
+- 📎 Attachment Hub for quick file access
+- 📬 Subscription Manager to easily unsubscribe
+- ➕ Add multiple email accounts seamlessly
+- 📱 Mobile-responsive, modern UI
+
+---
+
+## 📸 Screenshots
+
+| Home | Add Email | First Screen |
+|------|-----------|--------------|
+| ![](screenshots/home.jpeg) | ![](screenshots/addEmailAccount.jpeg) | ![](screenshots/firstScreen.jpeg) |
+
+| VIP Inbox | Attachments Hub | Unsubscribe Manager |
+|-----------|-----------------|----------------------|
+| ![](screenshots/VIP.jpeg) | ![](screenshots/attachments.jpeg) | ![](screenshots/unsubscribe.jpeg) |
+
+| Filter View | Create Filter | Add Filter |
+|-------------|----------------|-------------|
+| ![](screenshots/filter.jpeg) | ![](screenshots/createCustomFilter.jpeg) | ![](screenshots/addCustomFilter.jpeg) |
+
+| Hamburger Filter |
+|------------------|
+| ![](screenshots/customFilterhamburger.jpeg) |
+
+---
+
+## 🎥 Live Demo
+
+📽️ *Coming soon* – Will showcase login, inbox, filters, and attachment module in action.
+
+---
+
+## 🧠 How It Works
+
+### Gmail
+- Auth via Google OAuth
+- JSON response parsed with Dart models
+- Uses `googleapis` package for mail & attachments
+
+### Outlook
+- Auth via AAD OAuth
+- IMAP integration with `enough_mail`
+- Mails and attachments parsed via MIME
 
 ---
 
 ## 🧩 Tech Stack
 
-| Area                 | Tool / Library                        |
-|----------------------|----------------------------------------|
-| UI/UX                | Flutter, Dart, Lottie, VelocityX       |
-| Authentication       | Firebase Auth, `google_sign_in`, `aad_oauth` |
-| Email APIs           | Gmail API (REST), IMAP via `enough_mail` |
-| Data Storage         | `flutter_secure_storage`, `shared_preferences` |
-| Networking           | `http`, `googleapis`, `googleapis_auth` |
-| PDF & Attachments    | `flutter_pdfview`, `open_file`, `path_provider` |
-| Utilities            | `event_bus`, `uuid`, `connectivity_plus` |
+| Area           | Tool / Library                         |
+|----------------|-----------------------------------------|
+| UI/UX          | Flutter, Figma                          |
+| Auth           | Firebase Auth, Google OAuth2, AAD OAuth |
+| API Access     | `googleapis`, `enough_mail`, `http`     |
+| Storage        | `flutter_secure_storage`, `shared_preferences` |
+| Parsing        | MIME Parsing for attachments            |
+| Preview        | `open_file`, `path_provider`            |
+| State Mgmt     | SetState (basic), Local caching         |
 
 ---
 
-## 📂 Folder Structure
+## 📁 Folder Overview
 
+
+---
+
+## 🔐 Secure Storage
+
+- `flutter_secure_storage`: stores access tokens
+- `shared_preferences`: stores VIP list and filter configs
+- No refresh token stored to reduce complexity and avoid silent security issues
+
+---
+
+## 📦 Features Breakdown
+
+- **VIP Inbox:** Filters important senders
+- **Attachments:** Parses & lists files from emails
+- **Unsubscribe Module:** Smart unsubscribe option from newsletters
+- **Custom Filters:** Dynamic email filtering with sender/keyword conditions
+
+---
+
+## 📈 Future Additions
+
+- [ ] Auto-refresh token logic
+- [ ] Email search & sorting
+- [ ] Archive/Delete support
+- [ ] Theme toggle (light/dark)
+
+---
+
+## 🛠 Development Model
+
+- Modular & scalable architecture
+- Light MVVM pattern
+- UI-logic separation for testability
+
+---
+
+## 👨‍💻 Developer
+
+Harsh Kirti Singh & Hardik Sonkar  
+
+---
+
+> 💡 *Want to contribute or have feedback? Open a pull request or drop a GitHub issue!*
